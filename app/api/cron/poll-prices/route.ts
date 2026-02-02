@@ -11,8 +11,8 @@ import { Watchlist, WatchlistState } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
     // Verify cron secret
-    const authHeader = request.headers.get('x-cron-secret');
-    if (authHeader !== process.env.CRON_SECRET) {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -8,6 +8,7 @@ import {
     isInZone
 } from '@/lib/alert-logic';
 import { Watchlist, WatchlistState } from '@/lib/types';
+import { sendTelegramMessage } from '@/lib/telegram';
 
 export async function GET(request: NextRequest) {
     // Verify cron secret
@@ -124,6 +125,17 @@ export async function GET(request: NextRequest) {
                     } else {
                         alertsCreated++;
                         console.log(`Alert created for ${watchlist.symbol} at ${priceData.price}`);
+
+                        // Gửi tin nhắn Telegram
+                        const telegramMsg = `
+🚀 <b>CẢNH BÁO CỔ PHIẾU: ${watchlist.symbol}</b>
+💰 Giá hiện tại: <b>${priceData.price}</b>
+🎯 Vùng mục tiêu: ${watchlist.buy_min} - ${watchlist.buy_max}
+⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}
+📝 Ghi chú: ${reason}
+                        `.trim();
+
+                        await sendTelegramMessage(telegramMsg);
                     }
                 }
             }

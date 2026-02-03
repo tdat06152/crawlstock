@@ -2,7 +2,7 @@ name: Poll Stock Prices
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # Run every 15 minutes
+    - cron: '*/5 * * * *' # Run every 5 minutes for better reliability
   workflow_dispatch: # Allow manual trigger
 
 jobs:

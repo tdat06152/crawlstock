@@ -62,10 +62,13 @@ export async function POST(request: NextRequest) {
                 const inZone = isInZone(currentPrice, item.buy_min, item.buy_max);
                 const status = inZone ? '<b>IN ZONE</b>' : 'waiting';
 
-                responseMsg += `• <b>${item.symbol}</b> — ${currentPrice} (target: ${item.buy_min}-${item.buy_max}) — ${status}\n`;
+                responseMsg += `<b>${item.symbol}</b>\n`;
+                responseMsg += `• Price: <b>${currentPrice}</b>\n`;
+                responseMsg += `• Target: ${item.buy_min} - ${item.buy_max}\n`;
+                responseMsg += `• Status: ${status}\n\n`;
             });
 
-            responseMsg += `\n<i>${new Date().toLocaleString('vi-VN')}</i>`;
+            responseMsg += `<i>${new Date().toLocaleString('vi-VN')}</i>`;
 
             await sendTelegramMessage(responseMsg, chatId);
         }

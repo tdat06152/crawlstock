@@ -5,25 +5,29 @@ export interface StockPrice {
 }
 
 export class VNMarketClient {
-    private baseUrl = 'https://services.entrade.com.vn/dnse-market-info-service/prices/quotes';
+    private baseUrl = 'https://services.entrade.com.vn/chart-api/v2/ohlcs/stock';
 
     /**
-     * Fetch the real-time quote from DNSE/Entrade Market Info Service
+     * Fetch the latest price for a symbol from Entrade OHLC API
      */
     async getLatestPrice(symbol: string): Promise<StockPrice | null> {
         try {
-            const url = new URL(this.baseUrl);
-            url.searchParams.append('symbols', symbol);
-            url.searchParams.append('_', Date.now().toString()); // Cache busting
+            const to = Math.floor(Date.now() / 1000);
+            // Fetch last 2 hours to be safe and get the latest 1m candles
+            const from = to - (2 * 60 * 60);
 
-            console.log(`[VNMarket] Fetching ${symbol} from Entrade Real-time...`);
+            const url = new URL(this.baseUrl);
+            url.searchParams.append('from', from.toString());
+            url.searchParams.append('to', to.toString());
+            url.searchParams.append('symbol', symbol);
+            url.searchParams.append('resolution', '1');
+
+            console.log(`[VNMarket] Fetching ${symbol}...`);
 
             const response = await fetch(url.toString(), {
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                    'Accept': 'application/json',
-                    'Referer': 'https://banggia.dnse.com.vn/',
-                    'Origin': 'https://banggia.dnse.com.vn'
+                    'User-Agent': 'Mozilla/5.0',
+                    'Accept': 'application/json'
                 },
                 cache: 'no-store'
             });
@@ -33,40 +37,27 @@ export class VNMarketClient {
                 return null;
             }
 
-            const json = await response.json();
+            const data = await response.json();
 
-            // Log full response if it seems empty
-            if (!json || (Array.isArray(json) && json.length === 0)) {
-                console.warn(`Empty response for ${symbol}:`, json);
+            // Entrade Structure: { "t": [timestamps], "c": [closes], ... }
+            if (!data.c || data.c.length === 0) {
+                console.warn(`No candle data for ${symbol}`);
                 return null;
             }
 
-            // Entrade usually returns an array [ { symbol: "BID", lastPrice: 55.4, ... } ]
-            const data = Array.isArray(json) ? json[0] : (json.data?.[0] || json[symbol]);
+            const latestPrice = data.c[data.c.length - 1];
+            const latestTs = data.t[data.t.length - 1];
 
-            if (!data) {
-                console.warn(`Could not find data for ${symbol} in response`);
-                return null;
-            }
-
-            // Try different possible field names for price
-            const latestPrice = data.lastPrice || data.price || data.p || data.close;
-
-            if (latestPrice === undefined) {
-                console.warn(`Price field missing for ${symbol}`, data);
-                return null;
-            }
-
-            console.log(`[VNMarket] ${symbol} price found: ${latestPrice}`);
+            console.log(`[VNMarket] ${symbol} => ${latestPrice} at ${new Date(latestTs * 1000).toISOString()}`);
 
             return {
                 symbol,
                 price: latestPrice,
-                timestamp: new Date().toISOString()
+                timestamp: new Date(latestTs * 1000).toISOString()
             };
 
         } catch (error) {
-            console.error(`Error fetching real-time price for ${symbol}:`, error);
+            console.error(`Error fetching price for ${symbol}:`, error);
             return null;
         }
     }

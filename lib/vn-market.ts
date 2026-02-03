@@ -5,28 +5,22 @@ export interface StockPrice {
 }
 
 export class VNMarketClient {
-    private baseUrl = 'https://services.entrade.com.vn/chart-api/v2/ohlcs/stock';
+    private baseUrl = 'https://api.dnse.com.vn/market-api/v2/quotes';
 
     /**
-     * Fetch the latest price for a symbol from Entrade API
+     * Fetch the real-time quote from DNSE Market API
      */
     async getLatestPrice(symbol: string): Promise<StockPrice | null> {
         try {
-            const to = Math.floor(Date.now() / 1000);
-            // Fetch last 2 hours to be safe and get the latest 1m candles
-            const from = to - (2 * 60 * 60);
-
             const url = new URL(this.baseUrl);
-            url.searchParams.append('from', from.toString());
-            url.searchParams.append('to', to.toString());
-            url.searchParams.append('symbol', symbol);
-            url.searchParams.append('resolution', '1');
+            url.searchParams.append('symbols', symbol);
 
-            console.log(`[VNMarket] Fetching ${symbol}...`);
+            console.log(`[DNSE] Fetching real-time: ${symbol}...`);
 
             const response = await fetch(url.toString(), {
                 headers: {
-                    'User-Agent': 'Mozilla/5.0'
+                    'User-Agent': 'Mozilla/5.0',
+                    'Accept': 'application/json'
                 },
                 cache: 'no-store'
             });
@@ -36,27 +30,27 @@ export class VNMarketClient {
                 return null;
             }
 
-            const data = await response.json();
+            const json = await response.json();
 
-            if (!data || !data.c || data.c.length === 0) {
-                console.warn(`No data found for ${symbol}`);
+            // DNSE Structure: { "data": [ { "symbol": "BID", "lastPrice": 55.1, ... } ] }
+            const data = json.data?.[0];
+
+            if (!data || data.lastPrice === undefined) {
+                console.warn(`No real-time data for ${symbol}`);
                 return null;
             }
 
-            // The last element is the most recent candle
-            const latestPrice = data.c[data.c.length - 1];
-            const latestTimestamp = data.t[data.t.length - 1];
-
-            console.log(`[VNMarket] ${symbol} => ${latestPrice} (at ${new Date(latestTimestamp * 1000).toISOString()})`);
+            const latestPrice = data.lastPrice;
+            console.log(`[DNSE] ${symbol} => ${latestPrice}`);
 
             return {
                 symbol,
                 price: latestPrice,
-                timestamp: new Date(latestTimestamp * 1000).toISOString()
+                timestamp: new Date().toISOString()
             };
 
         } catch (error) {
-            console.error(`Error fetching price for ${symbol}:`, error);
+            console.error(`Error fetching DNSE price for ${symbol}:`, error);
             return null;
         }
     }

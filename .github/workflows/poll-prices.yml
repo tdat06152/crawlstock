@@ -10,4 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Price Polling API
-        run: curl -f -s -v -X GET "https://tdat06152-crawlstock.vercel.app/api/cron/poll-prices" -H "x-cron-secret:${{ secrets.CRON_SECRET }}"
+        run: curl -f -s -v -X GET "https://crawlstock.vercel.app/api/cron/poll-prices" -H "x-cron-secret:${{ secrets.CRON_SECRET }}"

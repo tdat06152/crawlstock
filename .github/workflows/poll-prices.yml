@@ -11,7 +11,6 @@ jobs:
     steps:
       - name: Trigger Price Polling API
         run: |
-          curl -v -X GET "https://${{ secrets.VERCEL_PROJECT_URL }}/api/cron/poll-prices" \
+          # Thêm -f để báo lỗi nếu HTTP status >= 400
+          curl -f -v -X GET "https://${{ secrets.VERCEL_PROJECT_URL }}/api/cron/poll-prices" \
           -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
-          # Also supporting Authorization header as fallback
-          # -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

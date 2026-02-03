@@ -77,17 +77,11 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // ... (rest of the alert processing)
-        // For debugging, we'll return the update results in the response
-        return NextResponse.json({
-            success: true,
-            processed: uniqueSymbols.length,
-            updates: updateResults
-        });
+        // 5. Process alerts for each watchlist
         let alertsCreated = 0;
         const priceMap = new Map(prices.map(p => [p.symbol, p]));
 
-        for (const watchlist of watchlists as Watchlist[]) {
+        for (const watchlist of (watchlists || []) as Watchlist[]) {
             const priceData = priceMap.get(watchlist.symbol);
             if (!priceData) continue;
 
@@ -101,36 +95,36 @@ export async function GET(request: NextRequest) {
             const state = stateData as WatchlistState | null;
 
             // Check if alert should be triggered
-            if (shouldTriggerAlert(priceData.price, watchlist, state)) {
+            const triggerThisTime = shouldTriggerAlert(priceData.price, watchlist, state);
+            if (triggerThisTime) {
                 // Check cooldown
                 if (!isCooldownExpired(state?.last_alert_at || null, watchlist.cooldown_minutes)) {
                     console.log(`Cooldown active for ${watchlist.symbol}, skipping alert`);
-                    continue;
-                }
-
-                // Create alert
-                const reason = generateAlertReason(
-                    watchlist.symbol,
-                    priceData.price,
-                    watchlist.buy_min,
-                    watchlist.buy_max
-                );
-
-                const { error: alertError } = await supabase
-                    .from('alerts')
-                    .insert({
-                        user_id: watchlist.user_id,
-                        watchlist_id: watchlist.id,
-                        symbol: watchlist.symbol,
-                        price: priceData.price,
-                        reason
-                    });
-
-                if (alertError) {
-                    console.error(`Error creating alert for ${watchlist.symbol}:`, alertError);
                 } else {
-                    alertsCreated++;
-                    console.log(`Alert created for ${watchlist.symbol} at ${priceData.price}`);
+                    // Create alert
+                    const reason = generateAlertReason(
+                        watchlist.symbol,
+                        priceData.price,
+                        watchlist.buy_min,
+                        watchlist.buy_max
+                    );
+
+                    const { error: alertError } = await supabase
+                        .from('alerts')
+                        .insert({
+                            user_id: watchlist.user_id,
+                            watchlist_id: watchlist.id,
+                            symbol: watchlist.symbol,
+                            price: priceData.price,
+                            reason
+                        });
+
+                    if (alertError) {
+                        console.error(`Error creating alert for ${watchlist.symbol}:`, alertError);
+                    } else {
+                        alertsCreated++;
+                        console.log(`Alert created for ${watchlist.symbol} at ${priceData.price}`);
+                    }
                 }
             }
 
@@ -143,7 +137,7 @@ export async function GET(request: NextRequest) {
                     last_in_zone: currentlyInZone,
                     last_price: priceData.price,
                     last_ts: priceData.timestamp,
-                    last_alert_at: shouldTriggerAlert(priceData.price, watchlist, state)
+                    last_alert_at: triggerThisTime
                         ? new Date().toISOString()
                         : state?.last_alert_at || null
                 }, {
@@ -157,9 +151,10 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            source: 'VNMarket (Entrade)',
+            source: 'DNSE/Entrade Real-time',
             symbols_processed: prices.length,
-            watchlists_checked: watchlists.length,
+            watchlists_checked: watchlists?.length || 0,
+            updates: updateResults,
             alerts_created: alertsCreated
         });
 

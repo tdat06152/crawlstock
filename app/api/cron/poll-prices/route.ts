@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         console.log(`Fetched ${prices.length} prices`);
 
         // 4. Upsert prices into latest_prices table
+        const updateResults = [];
         for (const priceData of prices) {
             const { error: upsertError } = await supabase
                 .from('latest_prices')
@@ -70,10 +71,19 @@ export async function GET(request: NextRequest) {
 
             if (upsertError) {
                 console.error(`Error upserting price for ${priceData.symbol}:`, upsertError);
+                updateResults.push({ symbol: priceData.symbol, status: 'error', error: upsertError });
+            } else {
+                updateResults.push({ symbol: priceData.symbol, status: 'success', price: priceData.price });
             }
         }
 
-        // 5. Process alerts for each watchlist
+        // ... (rest of the alert processing)
+        // For debugging, we'll return the update results in the response
+        return NextResponse.json({
+            success: true,
+            processed: uniqueSymbols.length,
+            updates: updateResults
+        });
         let alertsCreated = 0;
         const priceMap = new Map(prices.map(p => [p.symbol, p]));
 

@@ -128,11 +128,12 @@ export async function GET(request: NextRequest) {
 
                         // Gửi tin nhắn Telegram
                         const telegramMsg = `
-🚀 <b>CẢNH BÁO CỔ PHIẾU: ${watchlist.symbol}</b>
-💰 Giá hiện tại: <b>${priceData.price}</b>
-🎯 Vùng mục tiêu: ${watchlist.buy_min} - ${watchlist.buy_max}
-⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}
-📝 Ghi chú: ${reason}
+<b>ALERT: ${watchlist.symbol} is IN ZONE</b>
+
+• Price: <b>${priceData.price}</b>
+• Target: ${watchlist.buy_min} - ${watchlist.buy_max}
+• ${reason}
+• ${new Date().toLocaleString('vi-VN')}
                         `.trim();
 
                         await sendTelegramMessage(telegramMsg);

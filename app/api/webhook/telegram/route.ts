@@ -55,20 +55,17 @@ export async function POST(request: NextRequest) {
             const priceMap = new Map((prices || []).map(p => [p.symbol, p.price]));
 
             // 3. Compose response
-            let responseMsg = '📊 <b>DANH MỤC THEO DÕI NĂNG ĐỘNG</b>\n\n';
+            let responseMsg = '<b>WATCHLIST STATUS</b>\n\n';
 
             watchlists.forEach((item: any) => {
                 const currentPrice = priceMap.get(item.symbol) || 0;
                 const inZone = isInZone(currentPrice, item.buy_min, item.buy_max);
-                const status = inZone ? '🔥 <b>IN ZONE</b>' : '⏳ Waiting';
+                const status = inZone ? '<b>IN ZONE</b>' : 'waiting';
 
-                responseMsg += `🔹 <b>${item.symbol}</b>\n`;
-                responseMsg += `   💰 Giá: <b>${currentPrice}</b>\n`;
-                responseMsg += `   🎯 Zone: ${item.buy_min} - ${item.buy_max}\n`;
-                responseMsg += `   📍 Status: ${status}\n\n`;
+                responseMsg += `• <b>${item.symbol}</b> — ${currentPrice} (target: ${item.buy_min}-${item.buy_max}) — ${status}\n`;
             });
 
-            responseMsg += `<i>Cập nhật: ${new Date().toLocaleString('vi-VN')}</i>`;
+            responseMsg += `\n<i>${new Date().toLocaleString('vi-VN')}</i>`;
 
             await sendTelegramMessage(responseMsg, chatId);
         }

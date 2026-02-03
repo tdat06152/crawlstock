@@ -1,33 +1,37 @@
 
-export async function sendTelegramMessage(message: string) {
+export async function sendTelegramMessage(message: string, specificChatId?: string) {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const chatIds = specificChatId
+        ? [specificChatId]
+        : (process.env.TELEGRAM_CHAT_ID?.split(',') || []);
 
-    if (!token || !chatId) {
+    if (!token || chatIds.length === 0) {
         console.warn('[Telegram] Missing token or chatId. Skipping notification.');
         return;
     }
 
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: chatId,
-                text: message,
-                parse_mode: 'HTML'
-            })
-        });
+    for (const id of chatIds) {
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: id.trim(),
+                    text: message,
+                    parse_mode: 'HTML'
+                })
+            });
 
-        if (!response.ok) {
-            const err = await response.json();
-            console.error('[Telegram] Error sending message:', err);
-        } else {
-            console.log('[Telegram] Notification sent successfully');
+            if (!response.ok) {
+                const err = await response.json();
+                console.error(`[Telegram] Error sending message to ${id}:`, err);
+            } else {
+                console.log(`[Telegram] Notification sent successfully to ${id}`);
+            }
+        } catch (error) {
+            console.error(`[Telegram] Fetch error for ${id}:`, error);
         }
-    } catch (error) {
-        console.error('[Telegram] Fetch error:', error);
     }
 }

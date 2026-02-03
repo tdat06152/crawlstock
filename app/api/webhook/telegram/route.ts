@@ -16,10 +16,10 @@ export async function POST(request: NextRequest) {
 
         const chatId = message.chat.id.toString();
         const text = message.text.toLowerCase().trim();
-        const allowedChatId = process.env.TELEGRAM_CHAT_ID;
+        const allowedChatIds = process.env.TELEGRAM_CHAT_ID?.split(',').map(id => id.trim()) || [];
 
         // Security check
-        if (allowedChatId && chatId !== allowedChatId) {
+        if (allowedChatIds.length > 0 && !allowedChatIds.includes(chatId)) {
             console.warn(`[Telegram Webhook] Access denied for chatId: ${chatId}`);
             return NextResponse.json({ ok: true });
         }
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
                 .eq('enabled', true);
 
             if (wError || !watchlists || watchlists.length === 0) {
-                await sendTelegramMessage('⚠️ Bạn chưa theo dõi mã nào hoặc có database đang lỗi.');
+                await sendTelegramMessage('⚠️ Bạn chưa theo dõi mã nào hoặc có database đang lỗi.', chatId);
                 return NextResponse.json({ ok: true });
             }
 
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
             responseMsg += `<i>Cập nhật: ${new Date().toLocaleString('vi-VN')}</i>`;
 
-            await sendTelegramMessage(responseMsg);
+            await sendTelegramMessage(responseMsg, chatId);
         }
 
         return NextResponse.json({ ok: true });

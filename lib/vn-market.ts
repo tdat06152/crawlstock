@@ -13,18 +13,21 @@ export class VNMarketClient {
     async getLatestPrice(symbol: string): Promise<StockPrice | null> {
         try {
             const to = Math.floor(Date.now() / 1000);
-            const from = to - (7 * 24 * 60 * 60); // Look back 7 days to ensure we get data even on weekends/holidays
+            // Look back 3 days instead of 7 to reduce data volume with 1m resolution
+            // Still plenty to cover a weekend
+            const from = to - (3 * 24 * 60 * 60);
 
             const url = new URL(this.baseUrl);
             url.searchParams.append('from', from.toString());
             url.searchParams.append('to', to.toString());
             url.searchParams.append('symbol', symbol);
-            url.searchParams.append('resolution', '1D'); // Daily resolution is stable
+            url.searchParams.append('resolution', '1'); // Use 1-minute resolution for real-time-ish data
 
             const response = await fetch(url.toString(), {
                 headers: {
-                    'User-Agent': 'Mozilla/5.0' // Required by some WAFs
-                }
+                    'User-Agent': 'Mozilla/5.0'
+                },
+                cache: 'no-store' // CRITICAL: Disable caching to ensure we get fresh data
             });
 
             if (!response.ok) {
@@ -40,9 +43,11 @@ export class VNMarketClient {
                 return null;
             }
 
-            // Get the latest close price
+            // Get the latest price point (last minute)
             const latestPrice = data.c[data.c.length - 1];
             const latestTimestamp = data.t[data.t.length - 1];
+
+            console.log(`[VNMarket] ${symbol} price updated: ${latestPrice} at ${new Date(latestTimestamp * 1000).toLocaleString()}`);
 
             return {
                 symbol,

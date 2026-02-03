@@ -66,12 +66,13 @@ export function generateAlertReason(
     buyMin: number | null,
     buyMax: number | null
 ): string {
+    const formattedPrice = price.toLocaleString();
     if (buyMin !== null && buyMax !== null) {
-        return `${symbol} entered buy zone: $${price.toFixed(2)} (range: $${buyMin.toFixed(2)} - $${buyMax.toFixed(2)})`;
+        return `${symbol} entered buy zone: ${formattedPrice} (range: ${buyMin.toLocaleString()} - ${buyMax.toLocaleString()})`;
     } else if (buyMin !== null) {
-        return `${symbol} above buy minimum: $${price.toFixed(2)} (min: $${buyMin.toFixed(2)})`;
+        return `${symbol} above buy minimum: ${formattedPrice} (min: ${buyMin.toLocaleString()})`;
     } else if (buyMax !== null) {
-        return `${symbol} below buy maximum: $${price.toFixed(2)} (max: $${buyMax.toFixed(2)})`;
+        return `${symbol} below buy maximum: ${formattedPrice} (max: ${buyMax.toLocaleString()})`;
     }
-    return `${symbol} price update: $${price.toFixed(2)}`;
+    return `${symbol} price update: ${formattedPrice}`;
 }

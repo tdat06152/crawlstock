@@ -12,7 +12,16 @@ import { Watchlist, WatchlistState } from '@/lib/types';
 export async function GET(request: NextRequest) {
     // Verify cron secret
     const authHeader = request.headers.get('Authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    const xCronSecret = request.headers.get('x-cron-secret');
+    const secret = process.env.CRON_SECRET;
+
+    console.log('[Cron] Polling prices triggered at:', new Date().toISOString());
+
+    if (
+        (authHeader !== `Bearer ${secret}`) &&
+        (xCronSecret !== secret)
+    ) {
+        console.error('[Cron] Unauthorized access attempt');
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

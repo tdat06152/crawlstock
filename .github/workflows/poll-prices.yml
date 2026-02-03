@@ -11,6 +11,7 @@ jobs:
     steps:
       - name: Trigger Price Polling API
         run: |
-          # Thêm -f để báo lỗi nếu HTTP status >= 400
-          curl -f -v -X GET "https://${{ secrets.VERCEL_PROJECT_URL }}/api/cron/poll-prices" \
+          # Tự động xử lý URL để tránh lỗi lặp lại https:// hoặc thừa dấu cách
+          URL=$(echo "${{ secrets.VERCEL_PROJECT_URL }}/api/cron/poll-prices" | sed 's|https://||g' | sed 's|//|/|g')
+          curl -f -v -X GET "https://$URL" \
           -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"

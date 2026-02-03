@@ -5,15 +5,24 @@ export interface StockPrice {
 }
 
 export class VNMarketClient {
-    private baseUrl = 'https://services.entrade.com.vn/chart-api/v2/stock/quote';
+    private baseUrl = 'https://services.entrade.com.vn/chart-api/v2/ohlcs/stock';
 
     /**
-     * Fetch the real-time quote for a symbol from Entrade API
+     * Fetch the latest price for a symbol from Entrade API
      */
     async getLatestPrice(symbol: string): Promise<StockPrice | null> {
         try {
+            const to = Math.floor(Date.now() / 1000);
+            // Fetch last 2 hours to be safe and get the latest 1m candles
+            const from = to - (2 * 60 * 60);
+
             const url = new URL(this.baseUrl);
+            url.searchParams.append('from', from.toString());
+            url.searchParams.append('to', to.toString());
             url.searchParams.append('symbol', symbol);
+            url.searchParams.append('resolution', '1');
+
+            console.log(`[VNMarket] Fetching ${symbol}...`);
 
             const response = await fetch(url.toString(), {
                 headers: {
@@ -23,22 +32,22 @@ export class VNMarketClient {
             });
 
             if (!response.ok) {
-                console.error(`Error fetching quote for ${symbol}: ${response.status}`);
+                console.error(`Error fetching ${symbol}: ${response.status}`);
                 return null;
             }
 
             const data = await response.json();
 
-            // Structure: { "p": lastPrice, "t": timestamp, ... }
-            if (!data || data.p === undefined) {
-                console.warn(`No quote data found for ${symbol}`);
+            if (!data || !data.c || data.c.length === 0) {
+                console.warn(`No data found for ${symbol}`);
                 return null;
             }
 
-            const latestPrice = data.p;
-            const latestTimestamp = data.t || Math.floor(Date.now() / 1000);
+            // The last element is the most recent candle
+            const latestPrice = data.c[data.c.length - 1];
+            const latestTimestamp = data.t[data.t.length - 1];
 
-            console.log(`[Realtime] ${symbol} price updated: ${latestPrice}`);
+            console.log(`[VNMarket] ${symbol} => ${latestPrice} (at ${new Date(latestTimestamp * 1000).toISOString()})`);
 
             return {
                 symbol,
@@ -47,7 +56,7 @@ export class VNMarketClient {
             };
 
         } catch (error) {
-            console.error(`Error fetching real-time price for ${symbol}:`, error);
+            console.error(`Error fetching price for ${symbol}:`, error);
             return null;
         }
     }

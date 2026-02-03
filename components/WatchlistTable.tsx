@@ -163,7 +163,7 @@ export default function WatchlistTable({
                                             {item.latest_price ? (
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-base">
-                                                        {item.latest_price.price.toLocaleString()}
+                                                        {item.latest_price.price.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
                                                     </span>
                                                     <span className="text-[10px] text-slate-400 font-bold uppercase">VND</span>
                                                 </div>

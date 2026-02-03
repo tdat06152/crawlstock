@@ -18,15 +18,23 @@ export async function POST(request: NextRequest) {
         const text = message.text.toLowerCase().trim();
         const allowedChatIds = process.env.TELEGRAM_CHAT_ID?.split(',').map(id => id.trim()) || [];
 
+        // Lệnh đặc biệt để lấy ID (Bỏ qua check bảo mật để cứu hộ)
+        if (text.startsWith('/id') || text.startsWith('/myid')) {
+            await sendTelegramMessage(`🆔 Your Chat ID is: <code>${chatId}</code>`, chatId);
+            return NextResponse.json({ ok: true });
+        }
+
         // Security check
         if (allowedChatIds.length > 0 && !allowedChatIds.includes(chatId)) {
             console.warn(`[Telegram Webhook] Access denied for chatId: ${chatId}`);
             return NextResponse.json({ ok: true });
         }
 
-        // Handle /ma command
-        if (text === '/ma' || text === '/list' || text === '/check') {
+        // Handle commands (Support for /ma, /ma@botname, /list, /check)
+        if (text.startsWith('/ma') || text.startsWith('/list') || text.startsWith('/check')) {
             const supabase = createServiceClient();
+
+            // ... (rest of the logic remains same)
 
             // 1. Fetch enabled watchlists
             const { data: watchlists, error: wError } = await supabase

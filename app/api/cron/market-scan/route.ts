@@ -1,5 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { createServiceClient } from '@/lib/supabase-server';
 
 import { getAllSymbols, getSymbolHistory } from '@/lib/market-data';
@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
     const xCronSecret = req.headers.get('x-cron-secret');
     const secret = process.env.CRON_SECRET;
 
+    if (!secret) {
+        console.error('[Market Scan] CRON_SECRET is not configured on the server');
+        return NextResponse.json({ error: 'Configuration Error' }, { status: 500 });
+    }
+
     if (authHeader !== `Bearer ${secret}` && xCronSecret !== secret) {
+        console.error('[Market Scan] Unauthorized access attempt: Invalid token');
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

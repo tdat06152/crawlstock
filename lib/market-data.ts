@@ -1,5 +1,6 @@
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { OHLC } from './rsi';
+import { createServiceClient } from './supabase-server';
 
 // Fallback symbols if API fails
 const FALLBACK_SYMBOLS = [

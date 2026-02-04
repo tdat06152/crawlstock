@@ -33,17 +33,25 @@ export async function GET(req: NextRequest) {
 
     // Log Start
     const logId = crypto.randomUUID();
-    await supabase.from('jobs_log').insert({
+    console.log(`[Market Scan] Starting job with ID: ${logId}`);
+
+    // We use null for status initially because the DB constraint only allows ('OK', 'FAILED')
+    const { error: logError } = await supabase.from('jobs_log').insert({
         id: logId,
         job_name: 'Market Scan',
-        status: 'RUNNING',
-        meta: { start_time: new Date().toISOString() }
+        meta: { start_time: new Date().toISOString(), phase: 'STARTED' }
     });
+
+    if (logError) {
+        console.error('[Market Scan] Failed to create initial log:', logError);
+        // We continue anyway, but this is a warning sign
+    }
 
     try {
         // 2. Scan
-        // Limit symbols for safety unless we have a robust queue
+        console.log('[Market Scan] Fetching symbols...');
         let symbols = await getAllSymbols();
+        console.log(`[Market Scan] Found ${symbols.length} symbols to process`);
 
         // Shuffle or limit?
         // For now, let's take first 200 or so to avoid timeout in Vercel Free tier.

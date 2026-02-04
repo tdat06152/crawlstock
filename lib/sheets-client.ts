@@ -17,8 +17,11 @@ export async function writeScanSnapshot(snapshot: SheetSnapshot) {
     const url = process.env.GOOGLE_SHEETS_SCRIPT_URL;
     const key = process.env.GOOGLE_SHEETS_API_KEY;
 
-    if (!url || !key) {
-        throw new Error('Google Sheets config missing');
+    if (!url) {
+        throw new Error('GOOGLE_SHEETS_SCRIPT_URL is missing in environment variables');
+    }
+    if (!key) {
+        throw new Error('GOOGLE_SHEETS_API_KEY is missing in environment variables');
     }
 
     // Batch in chunks if necessary, but Apps Script limit is 50MB payload, so 2000 rows is fine.

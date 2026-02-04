@@ -9,13 +9,15 @@ interface WatchlistTableProps {
     onEdit: (watchlist: WatchlistWithPrice) => void;
     onDelete: (id: string) => void;
     onToggle: (id: string, enabled: boolean) => void;
+    scanData?: Map<string, any>;
 }
 
 export default function WatchlistTable({
     watchlists,
     onEdit,
     onDelete,
-    onToggle
+    onToggle,
+    scanData
 }: WatchlistTableProps) {
     const [search, setSearch] = useState('');
     const [sortBy, setSortBy] = useState<'symbol' | 'price' | 'updated'>('symbol');
@@ -110,6 +112,9 @@ export default function WatchlistTable({
                             >
                                 Updated {sortBy === 'updated' && (sortOrder === 'asc' ? '↑' : '↓')}
                             </th>
+                            <th className="px-6 py-4 text-center font-bold uppercase tracking-wider">
+                                RSI (Daily)
+                            </th>
                             <th className="px-6 py-4 text-left font-bold uppercase tracking-wider">
                                 Buy Range
                             </th>
@@ -117,7 +122,7 @@ export default function WatchlistTable({
                                 Status
                             </th>
                             <th className="px-6 py-4 text-center font-bold uppercase tracking-wider">
-                                Monitoring
+                                Monitor
                             </th>
                             <th className="px-6 py-4 text-right font-bold uppercase tracking-wider">
                                 Actions
@@ -127,7 +132,7 @@ export default function WatchlistTable({
                     <tbody className="divide-y divide-border">
                         {filteredWatchlists.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-6 py-16 text-center">
+                                <td colSpan={8} className="px-6 py-16 text-center">
                                     <div className="flex flex-col items-center gap-3">
                                         <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
                                             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -175,6 +180,25 @@ export default function WatchlistTable({
                                         </td>
                                         <td className="px-6 py-4 text-slate-500 text-xs font-medium">
                                             {formatTime(item.latest_price?.updated_at)}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {scanData && scanData.get(item.symbol) ? (
+                                                <div className="flex flex-col items-center">
+                                                    <span className={`font-bold px-2 py-0.5 rounded text-white text-xs ${(scanData.get(item.symbol).rsi >= 70) ? 'bg-red-500' :
+                                                        (scanData.get(item.symbol).rsi <= 30) ? 'bg-green-500' :
+                                                            (scanData.get(item.symbol).rsi <= 40) ? 'bg-lime-500' : 'bg-slate-400'
+                                                        }`}>
+                                                        {scanData.get(item.symbol).rsi.toFixed(1)}
+                                                    </span>
+                                                    <span className="text-[9px] text-slate-400 mt-0.5 font-bold">
+                                                        {scanData.get(item.symbol).state === 'NEUTRAL'
+                                                            ? (scanData.get(item.symbol).near_flag !== 'none' ? scanData.get(item.symbol).near_flag.replace('NEAR_', '~') : 'NEUT')
+                                                            : scanData.get(item.symbol).state.substr(0, 4)}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">

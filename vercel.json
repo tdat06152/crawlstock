@@ -2,7 +2,15 @@
   "crons": [
     {
       "path": "/api/cron/poll-prices",
-      "schedule": "0 5 * * *"
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/market-scan",
+      "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/watchlist-alerts",
+      "schedule": "0 9 * * *"
     }
   ]
 }

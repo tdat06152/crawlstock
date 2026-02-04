@@ -1,70 +1,45 @@
+
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { createClient } from '@/lib/supabase-client';
-import { Alert } from '@/lib/types';
 
 export default function NotificationManager() {
-    const [lastChecked, setLastChecked] = useState<Date>(new Date());
-    const [permission, setPermission] = useState<NotificationPermission>('default');
     const supabase = createClient();
 
     useEffect(() => {
-        // Request notification permission on mount
-        if ('Notification' in window) {
-            setPermission(Notification.permission);
+        // Poll for new alerts or subscribe to realtime?
+        // For now, let's just log or setup subscription if needed.
+        // Realtime subscription to 'alerts' table for current user
 
-            if (Notification.permission === 'default') {
-                Notification.requestPermission().then(perm => {
-                    setPermission(perm);
-                });
+        // Logic: check permission
+        // Not critical for 'Market Scan Add-on' MVP unless requested "Realtime Push".
+        // User requested "Gửi thông báo (in-app trước)".
+
+        // We can just query unread alerts every minute.
+
+        const checkAlerts = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data } = await supabase
+                .from('alerts')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('is_sent', false);
+
+            if (data && data.length > 0) {
+                // Show browser notification or toast
+                // console.log("New alerts:", data.length);
+
+                // Mark as sent?
+                // Usually we mark as 'read' when user views them. 'is_sent' implies pushed to user.
             }
-        }
+        };
 
-        // Poll for new alerts every 45 seconds
-        const interval = setInterval(checkForNewAlerts, 45000);
-
+        const interval = setInterval(checkAlerts, 60000);
         return () => clearInterval(interval);
     }, []);
 
-    const checkForNewAlerts = async () => {
-        try {
-            const { data: user } = await supabase.auth.getUser();
-            if (!user.user) return;
-
-            const { data: alerts, error } = await supabase
-                .from('alerts')
-                .select('*')
-                .eq('user_id', user.user.id)
-                .gt('triggered_at', lastChecked.toISOString())
-                .order('triggered_at', { ascending: false });
-
-            if (error) {
-                console.error('Error fetching alerts:', error);
-                return;
-            }
-
-            if (alerts && alerts.length > 0) {
-                alerts.forEach((alert: Alert) => {
-                    showNotification(alert);
-                });
-                setLastChecked(new Date());
-            }
-        } catch (error) {
-            console.error('Error checking alerts:', error);
-        }
-    };
-
-    const showNotification = (alert: Alert) => {
-        if (permission === 'granted' && 'Notification' in window) {
-            new Notification('Stock Alert', {
-                body: alert.reason,
-                icon: '/favicon.ico',
-                tag: alert.id,
-                requireInteraction: false
-            });
-        }
-    };
-
-    return null; // This component doesn't render anything
+    return null; // Headless component
 }

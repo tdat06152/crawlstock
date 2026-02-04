@@ -43,6 +43,12 @@ function setupSheet() {
 }
 
 function getSpreadsheet() {
+    try {
+        const active = SpreadsheetApp.getActiveSpreadsheet();
+        if (active) return active;
+    } catch (e) {
+        // Not bound
+    }
     const files = DriveApp.getFilesByName(SPREADSHEET_NAME);
     if (files.hasNext()) {
         return SpreadsheetApp.open(files.next());

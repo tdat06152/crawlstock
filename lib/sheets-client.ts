@@ -37,12 +37,11 @@ export async function writeScanSnapshot(snapshot: SheetSnapshot) {
         body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Sheets API error: ${res.status} - ${text}`);
+    const data = await res.json();
+    if (data && data.error) {
+        throw new Error(`Sheets Script Error: ${data.error}`);
     }
-
-    return res.json();
+    return data;
 }
 
 export async function getScanSnapshot(date: string) {

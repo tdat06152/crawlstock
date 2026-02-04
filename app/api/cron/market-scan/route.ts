@@ -15,9 +15,11 @@ export const maxDuration = 60; // 60 seconds (Hobby limit usually 10s, Pro 300s)
 export async function GET(req: NextRequest) {
     // 1. Auth Check (CRON_SECRET)
     const authHeader = req.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-        // Also allow manual run with admin secret if needed?
-        // return new NextResponse('Unauthorized', { status: 401 });
+    const xCronSecret = req.headers.get('x-cron-secret');
+    const secret = process.env.CRON_SECRET;
+
+    if (authHeader !== `Bearer ${secret}` && xCronSecret !== secret) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const startTime = Date.now();

@@ -1,4 +1,5 @@
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -55,9 +56,9 @@ export default function AlertsPage() {
                             <div className="divide-y divide-slate-100">
                                 {alerts.map((alert) => (
                                     <div key={alert.id} className="p-6 hover:bg-slate-50 transition-colors flex items-start gap-4">
-                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 ${alert.state.includes('OVER') ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 ${alert.state?.includes('OVER') ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'
                                             }`}>
-                                            {alert.state.includes('OVERSOLD') ? '📉' : '📈'}
+                                            {alert.state?.includes('OVERSOLD') ? '📉' : '📈'}
                                         </div>
                                         <div className="flex-1">
                                             <div className="flex justify-between items-start">

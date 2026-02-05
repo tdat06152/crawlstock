@@ -51,26 +51,27 @@ export async function GET(req: NextRequest) {
         console.log('[Market Scan] Fetching symbols...');
         let symbols = await getAllSymbols();
 
-        // Plus: Get symbols from user watchlists to ensure they are scanned
+        // Plus: Get symbols from user watchlists to ensure they are scanned FIRST
         const { data: watchlistData } = await supabase.from('watchlists').select('symbol');
-        if (watchlistData) {
-            const watchlistSymbols = watchlistData.map(w => w.symbol);
-            // Append and deduplicate
-            const combined = Array.from(new Set([...symbols, ...watchlistSymbols]));
-            symbols = combined;
+        const watchlistSymbols = watchlistData ? watchlistData.map(w => w.symbol) : [];
+
+        if (watchlistSymbols.length > 0) {
+            // Put watchlist symbols at the beginning, then the rest
+            const others = symbols.filter(s => !watchlistSymbols.includes(s));
+            symbols = [...new Set([...watchlistSymbols, ...others])];
         }
 
         console.log(`[Market Scan] Found ${symbols.length} symbols to process (including watchlists)`);
 
         const results = [];
-        // Concurrency limit
-        const CONCURRENCY = 15;
+        // Concurrency limit - Increase to 50 for faster processing
+        const CONCURRENCY = 50;
         const items = symbols;
 
         // Process in chunks
         for (let i = 0; i < items.length; i += CONCURRENCY) {
             // Check time left
-            if (Date.now() - startTime > 280000) { // Safety margin at 280s for Vercel Pro
+            if (Date.now() - startTime > 280000) { // Safety margin for Vercel Pro (300s)
                 console.log('Time limit reached, stopping scan');
                 break;
             }
@@ -78,14 +79,18 @@ export async function GET(req: NextRequest) {
             const chunk = items.slice(i, i + CONCURRENCY);
             const promises = chunk.map(async (symbol) => {
                 try {
-                    // Fetch 300 candles for EMA200 + MACD stability
-                    const history = await getSymbolHistory(symbol, 300);
-                    if (history.length < 20) return null; // Not enough data
+                    // Fetch 250 candles - sufficient for EMA200 stability and faster
+                    const history = await getSymbolHistory(symbol, 250);
+                    if (history.length < 20) return null;
 
                     const closes = history.map(h => h.c);
                     const highs = history.map(h => h.h);
                     const lows = history.map(h => h.l);
                     const volumes = history.map(h => h.v);
+
+                    // Skip illiquid stocks (zero volume in last 5 days) to save processing time
+                    const recentVol = volumes.slice(-5).reduce((a, b) => a + b, 0);
+                    if (recentVol === 0 && !watchlistSymbols.includes(symbol)) return null;
 
                     // 1. RSI Logic
                     const rsiSeries = calculateRSIArray(closes, 14);
@@ -145,8 +150,8 @@ export async function GET(req: NextRequest) {
             const chunkResults = await Promise.all(promises);
             results.push(...chunkResults.filter(r => r !== null));
 
-            // Smaller delay for speed
-            await new Promise(r => setTimeout(r, 50));
+            // Minimize delay to speed up processing
+            await new Promise(r => setTimeout(r, 10));
         }
 
         // 3. Write to Sheets

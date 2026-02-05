@@ -191,16 +191,16 @@ export function analyzeEMAMACD(
         state = 'EMA200_MACD_BUY';
     }
 
-    // Exit Logic
-    if (macdCross === 'cross_down' || (currentClose < currentEma && i > 0 && closes[i - 1] >= emas[i - 1]!)) {
-        // Only trigger SELL if we were bull or if macd crosses down
-        if (macdCross === 'cross_down' || currentClose < currentEma) {
-            state = 'EMA200_MACD_SELL';
-        }
+    // Exit Logic: Cross down OR Price breaks below EMA200
+    const prevClose = i > 0 ? closes[i - 1] : null;
+    const prevEma = i > 0 ? emas[i - 1] : null;
+    const priceBrokeDown = currentClose < currentEma && prevClose !== null && prevEma !== null && prevClose >= prevEma;
+
+    if (macdCross === 'cross_down' || priceBrokeDown) {
+        state = 'EMA200_MACD_SELL';
     }
 
-    // Refinement: If it's already BEAR, keep it BEAR unless it's a new SELL signal? 
-    // Actually the enum should represent the current standing.
+    // Final check for Bear state
     if (!isTrendBull && state !== 'EMA200_MACD_SELL') {
         state = 'EMA200_MACD_BEAR';
     }

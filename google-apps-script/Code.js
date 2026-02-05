@@ -1,284 +1,140 @@
-
 /**
- * GOOGLE APPS SCRIPT CODE
- * 
- * Instructions:
- * 1. Go to https://script.google.com/
- * 2. New Project
- * 3. Copy this code into Code.gs
- * 4. Deploy -> New Deployment -> Type: Web App
- * 5. Execute as: Me
- * 6. Who has access: Anyone
- * 7. Copy the Deployment URL (WEB_APP_URL)
- * 8. Set properties in File -> Project Properties -> Script Properties (New Editor: Project Settings -> Script Properties)
- *    Key: API_KEY, Value: <Pick a random complex string>
- * 
- * NOTE: You must manually run the setupSheet() function once to initialize the spreadsheet.
+ * GOOGLE APPS SCRIPT - PHIÊN BẢN CỰC KỲ ỔN ĐỊNH
+ * Tự động sửa lỗi lệch cột, hỗ trợ cả định dạng số VN/EN.
  */
 
 const SPREADSHEET_NAME = 'VN_RSI_STORAGE';
 const SHEET_SCAN = 'scan_results';
-const SHEET_ALERTS = 'alerts_log';
 
+// Cấu trúc cột BẮT BUỘC. Nếu thiếu cột hệ thống sẽ tự chèn.
 const HEADERS = [
-    'scan_date', 'symbol', 'close',
-    'rsi', 'state', 'near_flag', 'slope_5', 'distance_to_30', 'distance_to_70',
-    'ema200', 'distance_to_ema200_pct', 'macd', 'macd_signal', 'macd_hist', 'macd_cross', 'ema200_macd_state',
-    'bb_mid', 'bb_upper', 'bb_lower', 'bb_bandwidth_pct', 'vol', 'vol_ma20', 'vol_ratio', 'adx14', 'plus_di14', 'minus_di14', 'bb_state',
-    'updated_at'
+    'scan_date', 'symbol', 'close', 'rsi', 'state', 'near_flag', 'slope_5',
+    'distance_to_30', 'distance_to_70', 'ema200', 'distance_to_ema200_pct',
+    'macd', 'macd_signal', 'macd_hist', 'macd_cross', 'ema200_macd_state',
+    'bb_mid', 'bb_upper', 'bb_lower', 'bb_bandwidth_pct', 'vol', 'vol_ma20',
+    'vol_ratio', 'adx14', 'plus_di14', 'minus_di14', 'bb_state', 'updated_at'
 ];
 
+/**
+ * HÀM QUAN TRỌNG: Chạy hàm này khi headers bị sai.
+ * Nó sẽ làm mới hàng tiêu đề và xóa trắng dữ liệu để bắt đầu lại (nếu muốn).
+ */
+function forceSetup() {
+    const ss = getSpreadsheet() || SpreadsheetApp.create(SPREADSHEET_NAME);
+    let sheet = ss.getSheetByName(SHEET_SCAN) || ss.insertSheet(SHEET_SCAN);
+
+    sheet.clear(); // Xóa sạch để tránh lệch dữ liệu cũ
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    sheet.setFrozenRows(1);
+    return "Đã làm mới Sheet và Headers thành công!";
+}
+
 function setupSheet() {
-    let ss = getSpreadsheet();
-    if (!ss) {
-        ss = SpreadsheetApp.create(SPREADSHEET_NAME);
-    }
-
-    let sheet = ss.getSheetByName(SHEET_SCAN);
-    if (!sheet) {
-        sheet = ss.insertSheet(SHEET_SCAN);
-        sheet.appendRow(HEADERS);
-        sheet.setFrozenRows(1);
-    } else {
-        // Update headers to ensure all columns are present
-        sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    }
-
-    // Optional: Alerts log
-    let alertSheet = ss.getSheetByName(SHEET_ALERTS);
-    if (!alertSheet) {
-        alertSheet = ss.insertSheet(SHEET_ALERTS);
-        alertSheet.appendRow(['created_at', 'symbol', 'message']);
-    }
+    const ss = getSpreadsheet() || SpreadsheetApp.create(SPREADSHEET_NAME);
+    let sheet = ss.getSheetByName(SHEET_SCAN) || ss.insertSheet(SHEET_SCAN);
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    sheet.setFrozenRows(1);
 }
 
 function getSpreadsheet() {
-    try {
-        const active = SpreadsheetApp.getActiveSpreadsheet();
-        if (active) return active;
-    } catch (e) {
-        // Not bound
-    }
-    const files = DriveApp.getFilesByName(SPREADSHEET_NAME);
-    if (files.hasNext()) {
-        return SpreadsheetApp.open(files.next());
-    }
-    return null;
+    try { return SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.open(DriveApp.getFilesByName(SPREADSHEET_NAME).next()); } catch (e) { return null; }
 }
 
 function doPost(e) {
-    const lock = LockService.getScriptLock();
-    lock.tryLock(10000); // 10s wait
+    const body = JSON.parse(e.postData.contents);
+    if (body.key !== PropertiesService.getScriptProperties().getProperty('API_KEY')) return responseJSON({ error: 'Unauthorized' }, 401);
 
-    try {
-        if (!verifyAuth(e)) {
-            return responseJSON({ error: 'Unauthorized' }, 401);
-        }
-
-        const body = JSON.parse(e.postData.contents);
-        const action = e.parameter.action || body.action;
-
-        if (action === 'writeScanSnapshot') {
-            return writeScanSnapshot(body);
-        } else if (action === 'cleanupOldSnapshots') {
-            return cleanupOldSnapshots();
-        }
-
-        return responseJSON({ error: 'Unknown action' }, 400);
-
-    } catch (err) {
-        return responseJSON({ error: err.toString() }, 500);
-    } finally {
-        lock.releaseLock();
-    }
+    if (body.action === 'writeScanSnapshot') return writeScanSnapshot(body);
+    if (body.action === 'cleanupOldSnapshots') return cleanupOldSnapshots();
+    return responseJSON({ error: 'Unknown action' }, 400);
 }
 
 function doGet(e) {
-    try {
-        if (!verifyAuth(e)) {
-            return responseJSON({ error: 'Unauthorized' }, 401);
-        }
-
-        const action = e.parameter.action;
-
-        if (action === 'getScanSnapshot') {
-            const date = e.parameter.date;
-            return getScanSnapshot(date);
-        }
-
-        return responseJSON({ error: 'Unknown action' }, 400);
-
-    } catch (err) {
-        return responseJSON({ error: err.toString() }, 500);
-    }
-}
-
-function verifyAuth(e) {
-    const scriptProperties = PropertiesService.getScriptProperties();
-    let validKey = scriptProperties.getProperty('API_KEY');
-    if (validKey) validKey = validKey.trim();
-
-    let reqKey = e.parameter.key;
-
-    if (!reqKey && e.postData && e.postData.contents) {
-        try {
-            const body = JSON.parse(e.postData.contents);
-            reqKey = body.key;
-        } catch (err) {
-            // Not JSON
-        }
-    }
-
-    if (reqKey) reqKey = reqKey.trim();
-
-    return reqKey === validKey;
+    if (e.parameter.key !== PropertiesService.getScriptProperties().getProperty('API_KEY')) return responseJSON({ error: 'Unauthorized' }, 401);
+    if (e.parameter.action === 'getScanSnapshot') return getScanSnapshot(e.parameter.date);
+    return responseJSON({ error: 'Unknown action' }, 400);
 }
 
 function writeScanSnapshot(data) {
-    const ss = getSpreadsheet();
-    if (!ss) return responseJSON({ error: 'Spreadsheet not found' }, 404);
-    const sheet = ss.getSheetByName(SHEET_SCAN);
+    const sheet = getSpreadsheet().getSheetByName(SHEET_SCAN);
+    const rows = data.rows || [];
+    const snapshotDate = data.scan_date;
 
-    const scanDate = data.scan_date;
-    const rows = data.rows;
+    // Ánh xạ dữ liệu theo đúng tên Header để chống lệch cột
+    const values = rows.map(r => {
+        return HEADERS.map(h => {
+            if (h === 'scan_date') return snapshotDate;
+            if (h === 'updated_at') return new Date().toISOString();
+            let val = r[h];
+            return (val === null || val === undefined) ? '' : val;
+        });
+    });
 
-    if (!rows || rows.length === 0) return responseJSON({ status: 'No rows' });
-
-    const newRows = rows.map(r => [
-        scanDate,
-        r.symbol,
-        r.close,
-        r.rsi,
-        r.state,
-        r.near_flag,
-        r.slope_5,
-        r.distance_to_30,
-        r.distance_to_70,
-        r.ema200,
-        r.distance_to_ema200_pct,
-        r.macd,
-        r.macd_signal,
-        r.macd_hist,
-        r.macd_cross,
-        r.ema200_macd_state,
-        r.bb_mid,
-        r.bb_upper,
-        r.bb_lower,
-        r.bb_bandwidth_pct,
-        r.vol,
-        r.vol_ma20,
-        r.vol_ratio,
-        r.adx14,
-        r.plus_di14,
-        r.minus_di14,
-        r.bb_state,
-        new Date().toISOString()
-    ]);
-
-    if (newRows.length > 0) {
-        sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
+    if (values.length > 0) {
+        sheet.getRange(sheet.getLastRow() + 1, 1, values.length, HEADERS.length).setValues(values);
     }
-
-    return responseJSON({ status: 'OK', count: newRows.length });
+    return responseJSON({ status: 'OK', count: values.length });
 }
 
 function getScanSnapshot(date) {
-    const ss = getSpreadsheet();
-    if (!ss) return responseJSON({ error: 'Spreadsheet not found' }, 404);
-    const sheet = ss.getSheetByName(SHEET_SCAN);
-
+    const sheet = getSpreadsheet().getSheetByName(SHEET_SCAN);
     const data = sheet.getDataRange().getValues();
-    const results = [];
+    if (data.length <= 1) return responseJSON({ items: [] });
 
+    const headers = data[0];
+    const idx = {};
+    headers.forEach((h, i) => idx[h] = i);
+
+    const results = [];
     for (let i = 1; i < data.length; i++) {
         const row = data[i];
-        const rowDate = formatDate(row[0]);
-        if (rowDate === date) {
-            results.push({
-                scan_date: rowDate,
-                symbol: row[1],
-                close: row[2],
-                rsi: row[3],
-                state: row[4],
-                near_flag: row[5],
-                slope_5: row[6],
-                distance_to_30: row[7],
-                distance_to_70: row[8],
-                ema200: row[9],
-                distance_to_ema200_pct: row[10],
-                macd: row[11],
-                macd_signal: row[12],
-                macd_hist: row[13],
-                macd_cross: row[14],
-                ema200_macd_state: row[15],
-                bb_mid: row[16],
-                bb_upper: row[17],
-                bb_lower: row[18],
-                bb_bandwidth_pct: row[19],
-                vol: row[20],
-                vol_ma20: row[21],
-                vol_ratio: row[22],
-                adx14: row[23],
-                plus_di14: row[24],
-                minus_di14: row[25],
-                bb_state: row[26],
-                updated_at: row[27]
-            });
-        }
+        if (formatDate(row[idx['scan_date']]) !== date) continue;
+
+        const obj = {};
+        HEADERS.forEach(h => {
+            let val = row[idx[h]];
+            if (val === undefined) val = null;
+
+            // Xử lý số học: Chuyển đổi dấu phẩy (VN locale) sang dấu chấm
+            if (typeof val === 'string' && /^-?\d+,\d+$/.test(val.trim())) {
+                val = parseFloat(val.trim().replace(',', '.'));
+            }
+
+            obj[h] = val;
+        });
+        results.push(obj);
     }
 
-    // Deduplicate by symbol taking latest updated_at
-    const mapC = {};
+    // Lấy bản ghi mới nhất cho mỗi mã
+    const unique = {};
     results.forEach(r => {
-        if (!mapC[r.symbol] || new Date(r.updated_at) > new Date(mapC[r.symbol].updated_at)) {
-            mapC[r.symbol] = r;
+        if (!unique[r.symbol] || new Date(r.updated_at) > new Date(unique[r.symbol].updated_at)) {
+            unique[r.symbol] = r;
         }
     });
 
-    return responseJSON({ items: Object.values(mapC) });
+    return responseJSON({ items: Object.values(unique) });
 }
 
 function cleanupOldSnapshots() {
-    const ss = getSpreadsheet();
-    if (!ss) return responseJSON({ error: 'Spreadsheet not found' }, 404);
-    const sheet = ss.getSheetByName(SHEET_SCAN);
-
-    const today = new Date();
-    const cutoff = new Date(today.setDate(today.getDate() - 200));
-
+    const sheet = getSpreadsheet().getSheetByName(SHEET_SCAN);
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 200);
     const data = sheet.getDataRange().getValues();
-    // Filter in memory for rows to KEEP
-    const rowsToKeep = [data[0]]; // Header
+    const keep = [data[0]].concat(data.slice(1).filter(r => new Date(r[0]) >= cutoff));
 
-    let deletedCount = 0;
-    for (let i = 1; i < data.length; i++) {
-        const rowDate = new Date(data[i][0]);
-        if (rowDate >= cutoff) {
-            rowsToKeep.push(data[i]);
-        } else {
-            deletedCount++;
-        }
-    }
-
-    if (deletedCount > 0) {
-        sheet.clearContents();
-        sheet.getRange(1, 1, rowsToKeep.length, rowsToKeep[0].length).setValues(rowsToKeep);
-    }
-
-    return responseJSON({ status: 'OK', deleted: deletedCount });
+    sheet.clearContents();
+    if (keep.length > 0) sheet.getRange(1, 1, keep.length, keep[0].length).setValues(keep);
+    return responseJSON({ status: 'OK', deleted: data.length - keep.length });
 }
 
-function formatDate(dateObj) {
-    if (!dateObj) return '';
-    if (typeof dateObj === 'string') return dateObj; // Assume format is ok?
+function formatDate(d) {
     try {
-        return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    } catch (e) {
-        return String(dateObj);
-    }
+        if (d instanceof Date) return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        if (typeof d === 'string' && d.includes('T')) return d.split('T')[0];
+        return String(d);
+    } catch (e) { return String(d); }
 }
 
-function responseJSON(data, code = 200) {
-    return ContentService.createTextOutput(JSON.stringify(data))
-        .setMimeType(ContentService.MimeType.JSON);
+function responseJSON(d, c = 200) {
+    return ContentService.createTextOutput(JSON.stringify(d)).setMimeType(ContentService.MimeType.JSON);
 }

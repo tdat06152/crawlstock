@@ -200,9 +200,9 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                         <>
                                             <td className="px-6 py-5 text-center">
                                                 <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-xl font-black text-white text-xs shadow-lg shadow-slate-200"
-                                                    style={{ backgroundColor: getRSIColor(row.rsi) }}
+                                                    style={{ backgroundColor: getRSIColor(row.rsi || 0) }}
                                                 >
-                                                    {row.rsi.toFixed(1)}
+                                                    {row.rsi ? row.rsi.toFixed(1) : '--'}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5">
@@ -213,7 +213,7 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                             <td className="px-8 py-5 text-right">
                                                 <div className={`flex items-center justify-end gap-2 font-black text-xs ${(row.slope_5 || 0) > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                                                     <span className="text-[10px]">{(row.slope_5 || 0) > 0 ? '▲' : '▼'}</span>
-                                                    {Math.abs(row.slope_5 || 0).toFixed(2)}
+                                                    {row.slope_5 !== null ? Math.abs(row.slope_5).toFixed(2) : '0.00'}
                                                 </div>
                                             </td>
                                         </>
@@ -225,16 +225,16 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                                 </div>
                                                 <div className={`text-[10px] font-black ${(row.distance_to_ema200_pct || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                                                     {(row.distance_to_ema200_pct || 0) > 0 ? '+' : ''}
-                                                    {row.distance_to_ema200_pct?.toFixed(2)}%
+                                                    {row.distance_to_ema200_pct !== null ? row.distance_to_ema200_pct.toFixed(2) : '0.00'}%
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5 text-center">
                                                 <div className="flex flex-col items-center gap-1">
                                                     <div className="text-[10px] font-bold text-slate-400">
-                                                        M: <span className="text-slate-600">{row.macd?.toFixed(2)}</span> / S: <span className="text-slate-600">{row.macd_signal?.toFixed(2)}</span>
+                                                        M: <span className="text-slate-600">{row.macd !== null ? row.macd.toFixed(2) : '--'}</span> / S: <span className="text-slate-600">{row.macd_signal !== null ? row.macd_signal.toFixed(2) : '--'}</span>
                                                     </div>
                                                     <div className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-black ${(row.macd_hist || 0) >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                        H: {row.macd_hist?.toFixed(2)}
+                                                        H: {row.macd_hist !== null ? row.macd_hist.toFixed(2) : '--'}
                                                     </div>
                                                 </div>
                                             </td>

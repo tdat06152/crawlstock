@@ -66,7 +66,10 @@ export async function getSymbolHistory(symbol: string, days: number = 200): Prom
             for (let i = 0; i < data.t.length; i++) {
                 ohlc.push({
                     t: data.t[i],
-                    c: data.c[i]
+                    c: data.c[i],
+                    h: data.h ? data.h[i] : data.c[i],
+                    l: data.l ? data.l[i] : data.c[i],
+                    v: data.v ? data.v[i] : 0
                 });
             }
             return ohlc;

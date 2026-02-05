@@ -109,13 +109,16 @@ export default function WatchlistTable({
                                 RSI (Daily)
                             </th>
                             <th className="px-6 py-5 text-center font-black uppercase tracking-[0.1em] text-[10px]">
-                                EMA200 / MACD
+                                EMA / MACD
+                            </th>
+                            <th className="px-6 py-5 text-center font-black uppercase tracking-[0.1em] text-[10px]">
+                                Bollinger / ADX
                             </th>
                             <th className="px-6 py-5 text-left font-black uppercase tracking-[0.1em] text-[10px]">
                                 Vùng Mua
                             </th>
                             <th className="px-6 py-5 text-left font-black uppercase tracking-[0.1em] text-[10px]">
-                                Trạng Thái
+                                Hành động
                             </th>
                             <th className="px-6 py-5 text-right font-black uppercase tracking-[0.1em] text-[10px]">
                                 Sửa/Xóa
@@ -125,7 +128,7 @@ export default function WatchlistTable({
                     <tbody className="divide-y divide-border">
                         {filteredWatchlists.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-6 py-24 text-center">
+                                <td colSpan={8} className="px-6 py-24 text-center">
                                     <div className="flex flex-col items-center gap-4">
                                         <div className="text-5xl opacity-20 grayscale">📂</div>
                                         <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
@@ -182,8 +185,8 @@ export default function WatchlistTable({
                                                     </span>
                                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
                                                         {sData.state === 'NEUTRAL'
-                                                            ? (sData.near_flag !== 'none' ? sData.near_flag.replace('NEAR_', '~') : 'Theo dõi')
-                                                            : sData.state === 'OVERBOUGHT' ? 'Quá mua' : sData.state === 'OVERSOLD' ? 'Quá bán' : sData.state}
+                                                            ? (sData.near_flag !== 'none' ? 'CANH' : 'THEO DÕI')
+                                                            : sData.state === 'OVERBOUGHT' ? 'BÁN' : sData.state === 'OVERSOLD' ? 'MUA' : sData.state}
                                                     </span>
                                                 </div>
                                             ) : (
@@ -202,7 +205,26 @@ export default function WatchlistTable({
                                                         }`}>
                                                         {sData.ema200_macd_state === 'EMA200_MACD_BUY' ? 'MUA' :
                                                             sData.ema200_macd_state === 'EMA200_MACD_SELL' ? 'BÁN' :
-                                                                sData.ema200_macd_state === 'EMA200_MACD_BULL_NO_SIGNAL' ? 'TĂNG' : 'GIẢM'}
+                                                                sData.ema200_macd_state === 'EMA200_MACD_BULL_NO_SIGNAL' ? 'CANH' : 'BÁN (Y)'}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-200">--</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-5 text-center">
+                                            {sData && sData.bb_state ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <div className={`text-[10px] font-black ${(Number(sData.vol_ratio) >= 1.3) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                        V: {sData.vol_ratio}x | A: {sData.adx14}
+                                                    </div>
+                                                    <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter ${sData.bb_state === 'BB_BREAKOUT_BUY' ? 'bg-emerald-500 text-white' :
+                                                        sData.bb_state === 'BB_BREAKOUT_EXIT' ? 'bg-rose-500 text-white' :
+                                                            sData.bb_state === 'BB_BREAKOUT_WEAK' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                                                        }`}>
+                                                        {sData.bb_state === 'BB_BREAKOUT_BUY' ? 'MUA' :
+                                                            sData.bb_state === 'BB_BREAKOUT_EXIT' ? 'BÁN' :
+                                                                sData.bb_state === 'BB_BREAKOUT_WEAK' ? 'CANH' : 'DÕI'}
                                                     </div>
                                                 </div>
                                             ) : (

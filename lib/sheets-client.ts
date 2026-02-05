@@ -17,6 +17,18 @@ interface SheetSnapshot {
         macd_hist: number | null;
         macd_cross: string;
         ema200_macd_state: string;
+        // BB fields
+        bb_mid: number | null;
+        bb_upper: number | null;
+        bb_lower: number | null;
+        bb_bandwidth_pct: number | null;
+        vol: number | null;
+        vol_ma20: number | null;
+        vol_ratio: number | null;
+        adx14: number | null;
+        plus_di14: number | null;
+        minus_di14: number | null;
+        bb_state: string;
     }>;
 }
 
@@ -73,4 +85,24 @@ export async function getScanSnapshot(date: string) {
 
     const data = await res.json();
     return data.items || [];
+}
+
+export async function cleanupOldSnapshots() {
+    const url = process.env.GOOGLE_SHEETS_SCRIPT_URL;
+    const key = process.env.GOOGLE_SHEETS_API_KEY;
+
+    if (!url || !key) return;
+
+    const payload = {
+        action: 'cleanupOldSnapshots',
+        key: key
+    };
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+
+    return res.json();
 }

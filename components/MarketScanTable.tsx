@@ -21,6 +21,18 @@ interface ScanRow {
     macd_hist: number | null;
     macd_cross: string;
     ema200_macd_state: string;
+    // BB
+    bb_mid: number | null;
+    bb_upper: number | null;
+    bb_lower: number | null;
+    bb_bandwidth_pct: number | null;
+    vol: number | null;
+    vol_ma20: number | null;
+    vol_ratio: number | null;
+    adx14: number | null;
+    plus_di14: number | null;
+    minus_di14: number | null;
+    bb_state: string;
 }
 
 const RSI_FILTER_LABELS: Record<string, string> = {
@@ -38,8 +50,16 @@ const EMA_MACD_FILTER_LABELS: Record<string, string> = {
     'NEAR_EMA': 'Gần EMA200'
 };
 
+const BB_FILTER_LABELS: Record<string, string> = {
+    'ALL': 'Tất cả',
+    'BUY': 'Bùng nổ (BUY)',
+    'EXIT': 'Cảnh báo (EXIT)',
+    'WEAK': 'Chờ xác nhận',
+    'HIGH_VOL': 'Vol đột biến'
+};
+
 export default function MarketScanTable({ data }: { data: ScanRow[] }) {
-    const [activeTab, setActiveTab] = useState<'RSI' | 'EMA_MACD'>('RSI');
+    const [activeTab, setActiveTab] = useState<'RSI' | 'EMA_MACD' | 'BB_BREAKOUT'>('RSI');
     const [filter, setFilter] = useState('ALL');
     const [sort, setSort] = useState<string>('DEFAULT');
     const [search, setSearch] = useState('');
@@ -62,7 +82,7 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
             if (sort === 'VAL_ASC') res.sort((a, b) => a.rsi - b.rsi);
             if (sort === 'VAL_DESC') res.sort((a, b) => b.rsi - a.rsi);
             if (sort === 'SLOPE_DESC') res.sort((a, b) => (b.slope_5 || 0) - (a.slope_5 || 0));
-        } else {
+        } else if (activeTab === 'EMA_MACD') {
             if (filter === 'BUY') res = res.filter(r => r.ema200_macd_state === 'EMA200_MACD_BUY');
             if (filter === 'SELL') res = res.filter(r => r.ema200_macd_state === 'EMA200_MACD_SELL');
             if (filter === 'BULL') res = res.filter(r => r.ema200_macd_state === 'EMA200_MACD_BULL_NO_SIGNAL' || r.ema200_macd_state === 'EMA200_MACD_BUY');
@@ -71,14 +91,24 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
             // Sort EMA/MACD
             if (sort === 'VAL_ASC') res.sort((a, b) => (a.distance_to_ema200_pct || 0) - (b.distance_to_ema200_pct || 0));
             if (sort === 'HIST_DESC') res.sort((a, b) => (b.macd_hist || 0) - (a.macd_hist || 0));
+        } else if (activeTab === 'BB_BREAKOUT') {
+            if (filter === 'BUY') res = res.filter(r => r.bb_state === 'BB_BREAKOUT_BUY');
+            if (filter === 'EXIT') res = res.filter(r => r.bb_state === 'BB_BREAKOUT_EXIT');
+            if (filter === 'WEAK') res = res.filter(r => r.bb_state === 'BB_BREAKOUT_WEAK');
+            if (filter === 'HIGH_VOL') res = res.filter(r => (r.vol_ratio || 0) >= 1.5);
+
+            // Sort BB
+            if (sort === 'VOL_DESC') res.sort((a, b) => (b.vol_ratio || 0) - (a.vol_ratio || 0));
+            if (sort === 'ADX_DESC') res.sort((a, b) => (b.adx14 || 0) - (a.adx14 || 0));
+            if (sort === 'BW_DESC') res.sort((a, b) => (b.bb_bandwidth_pct || 0) - (a.bb_bandwidth_pct || 0));
         }
 
         return res;
     }, [data, filter, sort, search, activeTab]);
 
-    const currentFilterLabels = activeTab === 'RSI' ? RSI_FILTER_LABELS : EMA_MACD_FILTER_LABELS;
+    const currentFilterLabels = activeTab === 'RSI' ? RSI_FILTER_LABELS : activeTab === 'EMA_MACD' ? EMA_MACD_FILTER_LABELS : BB_FILTER_LABELS;
 
-    const handleTabChange = (tab: 'RSI' | 'EMA_MACD') => {
+    const handleTabChange = (tab: 'RSI' | 'EMA_MACD' | 'BB_BREAKOUT') => {
         setActiveTab(tab);
         setFilter('ALL');
         setSort('DEFAULT');
@@ -105,6 +135,15 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                         }`}
                 >
                     📈 EMA200 + MACD
+                </button>
+                <button
+                    onClick={() => handleTabChange('BB_BREAKOUT')}
+                    className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'BB_BREAKOUT'
+                        ? 'bg-white text-accent shadow-md translate-y-[-1px]'
+                        : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                >
+                    🎯 BOLLINGER BREAKOUT
                 </button>
             </div>
 
@@ -152,10 +191,16 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                 <option value="VAL_DESC">RSI Cao nhất</option>
                                 <option value="SLOPE_DESC">Đà tăng mạnh nhất</option>
                             </>
-                        ) : (
+                        ) : activeTab === 'EMA_MACD' ? (
                             <>
                                 <option value="VAL_ASC">Gần EMA200 nhất</option>
                                 <option value="HIST_DESC">Histogram cao nhất</option>
+                            </>
+                        ) : (
+                            <>
+                                <option value="VOL_DESC">Volume mạnh nhất</option>
+                                <option value="ADX_DESC">Trend (ADX) cao nhất</option>
+                                <option value="BW_DESC">Độ rộng Band (Bùng nổ)</option>
                             </>
                         )}
                     </select>
@@ -173,14 +218,20 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                 {activeTab === 'RSI' ? (
                                     <>
                                         <th className="px-6 py-6 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">RSI(14)</th>
-                                        <th className="px-6 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Khuyến nghị</th>
+                                        <th className="px-6 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Hành động</th>
                                         <th className="px-8 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Đà RSI</th>
                                     </>
-                                ) : (
+                                ) : activeTab === 'EMA_MACD' ? (
                                     <>
                                         <th className="px-6 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">EMA200 / Cách</th>
                                         <th className="px-6 py-6 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">MACD / Histogram</th>
-                                        <th className="px-8 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Trạng thái EMA+MACD</th>
+                                        <th className="px-8 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Hành động (EMA+MACD)</th>
+                                    </>
+                                ) : (
+                                    <>
+                                        <th className="px-6 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Bollinger Bands</th>
+                                        <th className="px-6 py-6 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Volume / ADX</th>
+                                        <th className="px-8 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Hành động (BB)</th>
                                     </>
                                 )}
                             </tr>
@@ -217,7 +268,7 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                                 </div>
                                             </td>
                                         </>
-                                    ) : (
+                                    ) : activeTab === 'EMA_MACD' ? (
                                         <>
                                             <td className="px-6 py-5 text-right">
                                                 <div className="text-xs font-bold text-slate-600 block mb-0.5">
@@ -241,6 +292,32 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                             <td className="px-8 py-5">
                                                 <div className={`inline-flex px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm border ${getEMAMACDStyles(row.ema200_macd_state, row.macd_cross)}`}>
                                                     {getEMAMACDText(row.ema200_macd_state, row.macd_cross)}
+                                                </div>
+                                            </td>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <td className="px-6 py-5 text-right">
+                                                <div className="text-[10px] font-bold text-slate-400 mb-1">
+                                                    U: <span className="text-slate-600">{row.bb_upper || '--'}</span> | L: <span className="text-slate-600">{row.bb_lower || '--'}</span>
+                                                </div>
+                                                <div className="text-[11px] font-black text-accent">
+                                                    BW: {row.bb_bandwidth_pct || '0.00'}%
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-5 text-center">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <div className={`text-[11px] font-black ${(Number(row.vol_ratio) || 0) >= 1.3 ? 'text-emerald-500' : 'text-slate-500'}`}>
+                                                        Vol: {row.vol_ratio || '0.00'}x
+                                                    </div>
+                                                    <div className={`text-[10px] font-bold ${(Number(row.adx14) || 0) >= 20 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                        ADX: {row.adx14 || '--'}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className={`inline-flex px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm border ${getBBStyles(row.bb_state)}`}>
+                                                    {getBBText(row.bb_state)}
                                                 </div>
                                             </td>
                                         </>
@@ -273,11 +350,11 @@ function getRSIColor(rsi: number) {
 }
 
 function getRSIActionText(state: string, nearFlag: string) {
-    if (state === 'OVERBOUGHT') return 'Chốt lời / Bán';
-    if (state === 'OVERSOLD') return 'Mua ngay';
-    if (nearFlag === 'NEAR_OVERBOUGHT') return 'Canh bán';
-    if (nearFlag === 'NEAR_OVERSOLD') return 'Canh mua';
-    return 'Theo dõi';
+    if (state === 'OVERBOUGHT') return 'BÁN';
+    if (state === 'OVERSOLD') return 'MUA';
+    if (nearFlag === 'NEAR_OVERBOUGHT') return 'BÁN (Canh)';
+    if (nearFlag === 'NEAR_OVERSOLD') return 'MUA (Canh)';
+    return 'THEO DÕI';
 }
 
 function getRSIActionStyles(state: string, nearFlag: string) {
@@ -289,13 +366,11 @@ function getRSIActionStyles(state: string, nearFlag: string) {
 }
 
 function getEMAMACDText(state: string, cross: string) {
-    if (state === 'EMA200_MACD_BUY') return 'MUA MẠNH';
-    if (state === 'EMA200_MACD_SELL') {
-        return cross === 'cross_down' ? 'BÁN / CHỐT LỜI' : 'Gãy EMA200 (BÁN)';
-    }
-    if (state === 'EMA200_MACD_BULL_NO_SIGNAL') return 'Xh Tăng';
-    if (state === 'EMA200_MACD_BEAR') return 'Xh Giảm';
-    return 'Theo dõi';
+    if (state === 'EMA200_MACD_BUY') return 'MUA';
+    if (state === 'EMA200_MACD_SELL') return 'BÁN';
+    if (state === 'EMA200_MACD_BULL_NO_SIGNAL') return 'CANH (Tăng)';
+    if (state === 'EMA200_MACD_BEAR') return 'BÁN (Giảm)';
+    return 'THEO DÕI';
 }
 
 function getEMAMACDStyles(state: string, cross: string) {
@@ -303,6 +378,20 @@ function getEMAMACDStyles(state: string, cross: string) {
     if (state === 'EMA200_MACD_SELL') return 'bg-rose-500 text-white border-rose-600';
     if (state === 'EMA200_MACD_BULL_NO_SIGNAL') return 'bg-emerald-50 text-emerald-600 border-emerald-100';
     if (state === 'EMA200_MACD_BEAR') return 'bg-slate-50 text-slate-400 border-slate-100';
+    return 'bg-slate-50 text-slate-400 border-slate-100';
+}
+
+function getBBText(state: string) {
+    if (state === 'BB_BREAKOUT_BUY') return 'MUA (Nổ)';
+    if (state === 'BB_BREAKOUT_EXIT') return 'BÁN (Thoát)';
+    if (state === 'BB_BREAKOUT_WEAK') return 'CANH';
+    return 'THEO DÕI';
+}
+
+function getBBStyles(state: string) {
+    if (state === 'BB_BREAKOUT_BUY') return 'bg-emerald-500 text-white border-emerald-600';
+    if (state === 'BB_BREAKOUT_EXIT') return 'bg-rose-500 text-white border-rose-600';
+    if (state === 'BB_BREAKOUT_WEAK') return 'bg-emerald-50 text-emerald-600 border-emerald-100';
     return 'bg-slate-50 text-slate-400 border-slate-100';
 }
 

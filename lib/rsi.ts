@@ -7,7 +7,9 @@
 export interface OHLC {
     t: number; // timestamp in seconds
     c: number; // close price
-    // o, h, l, v available but not needed for RSI
+    h: number; // high
+    l: number; // low
+    v: number; // volume
 }
 
 export interface RSIResult {

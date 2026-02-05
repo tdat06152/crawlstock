@@ -20,6 +20,14 @@ const SPREADSHEET_NAME = 'VN_RSI_STORAGE';
 const SHEET_SCAN = 'scan_results';
 const SHEET_ALERTS = 'alerts_log';
 
+const HEADERS = [
+    'scan_date', 'symbol', 'close',
+    'rsi', 'state', 'near_flag', 'slope_5', 'distance_to_30', 'distance_to_70',
+    'ema200', 'distance_to_ema200_pct', 'macd', 'macd_signal', 'macd_hist', 'macd_cross', 'ema200_macd_state',
+    'bb_mid', 'bb_upper', 'bb_lower', 'bb_bandwidth_pct', 'vol', 'vol_ma20', 'vol_ratio', 'adx14', 'plus_di14', 'minus_di14', 'bb_state',
+    'updated_at'
+];
+
 function setupSheet() {
     let ss = getSpreadsheet();
     if (!ss) {
@@ -29,14 +37,11 @@ function setupSheet() {
     let sheet = ss.getSheetByName(SHEET_SCAN);
     if (!sheet) {
         sheet = ss.insertSheet(SHEET_SCAN);
-        sheet.appendRow([
-            'scan_date', 'symbol', 'close',
-            'rsi', 'state', 'near_flag', 'slope_5', 'distance_to_30', 'distance_to_70',
-            'ema200', 'distance_to_ema200_pct', 'macd', 'macd_signal', 'macd_hist', 'macd_cross', 'ema200_macd_state',
-            'updated_at'
-        ]);
-        // Freeze header
+        sheet.appendRow(HEADERS);
         sheet.setFrozenRows(1);
+    } else {
+        // Update headers to ensure all columns are present
+        sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
     }
 
     // Optional: Alerts log
@@ -156,6 +161,17 @@ function writeScanSnapshot(data) {
         r.macd_hist,
         r.macd_cross,
         r.ema200_macd_state,
+        r.bb_mid,
+        r.bb_upper,
+        r.bb_lower,
+        r.bb_bandwidth_pct,
+        r.vol,
+        r.vol_ma20,
+        r.vol_ratio,
+        r.adx14,
+        r.plus_di14,
+        r.minus_di14,
+        r.bb_state,
         new Date().toISOString()
     ]);
 
@@ -172,7 +188,6 @@ function getScanSnapshot(date) {
     const sheet = ss.getSheetByName(SHEET_SCAN);
 
     const data = sheet.getDataRange().getValues();
-    const headers = data[0];
     const results = [];
 
     for (let i = 1; i < data.length; i++) {
@@ -196,7 +211,18 @@ function getScanSnapshot(date) {
                 macd_hist: row[13],
                 macd_cross: row[14],
                 ema200_macd_state: row[15],
-                updated_at: row[16]
+                bb_mid: row[16],
+                bb_upper: row[17],
+                bb_lower: row[18],
+                bb_bandwidth_pct: row[19],
+                vol: row[20],
+                vol_ma20: row[21],
+                vol_ratio: row[22],
+                adx14: row[23],
+                plus_di14: row[24],
+                minus_di14: row[25],
+                bb_state: row[26],
+                updated_at: row[27]
             });
         }
     }

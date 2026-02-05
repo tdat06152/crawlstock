@@ -145,6 +145,56 @@ export async function GET(req: NextRequest) {
                     }
                 }
             }
+
+            // --- STRATEGY 3: BOLLINGER BREAKOUT ---
+            if (userSetting.enable_bb_breakout !== false) {
+                const bbState = marketData.bb_state;
+                if (bbState && bbState !== 'BB_NEUTRAL') {
+                    let signalType: 'BUY' | 'EXIT' | 'INFO' = 'INFO';
+                    let signalTypeLabel = 'INFO'; // used for key
+
+                    if (bbState === 'BB_BREAKOUT_BUY') {
+                        signalType = 'BUY';
+                        signalTypeLabel = 'BUY';
+                    } else if (bbState === 'BB_BREAKOUT_EXIT') {
+                        signalType = 'EXIT'; // mapped to 'EXIT' in DB or just use state
+                        signalTypeLabel = 'EXIT';
+                    } else if (bbState === 'BB_BREAKOUT_WEAK') {
+                        signalType = 'INFO';
+                        signalTypeLabel = 'WEAK';
+                    }
+
+                    const key = `${userId}-${symbol}-${marketData.scan_date}-BB_BREAKOUT-${signalTypeLabel}`;
+
+                    if (!seenAlerts.has(key)) {
+                        let msg = '';
+                        if (bbState === 'BB_BREAKOUT_BUY') {
+                            msg = `Bùng nổ BB: Close > Upper Band. VolRatio: ${marketData.vol_ratio}x, ADX: ${marketData.adx14}.`;
+                        } else if (bbState === 'BB_BREAKOUT_EXIT') {
+                            msg = `Cảnh báo thoát: Giá đóng cửa dưới đường Middle BB (SMA20).`;
+                        } else if (bbState === 'BB_BREAKOUT_WEAK') {
+                            msg = `Breakout yếu: Giá vượt biên trên nhưng thiếu Volume (${marketData.vol_ratio}x) hoặc lực Trend (ADX: ${marketData.adx14}).`;
+                        }
+
+                        alertsToInsert.push({
+                            user_id: userId,
+                            symbol: symbol,
+                            scan_date: marketData.scan_date || today,
+                            strategy: 'BB_BREAKOUT',
+                            signal_type: signalType,
+                            bb_mid: marketData.bb_mid,
+                            bb_upper: marketData.bb_upper,
+                            bb_lower: marketData.bb_lower,
+                            adx14: marketData.adx14,
+                            vol_ratio: marketData.vol_ratio,
+                            state: bbState,
+                            message: msg,
+                            is_sent: false
+                        });
+                        seenAlerts.add(key);
+                    }
+                }
+            }
         }
 
         if (alertsToInsert.length > 0) {

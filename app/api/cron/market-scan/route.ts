@@ -4,8 +4,8 @@ import { createServiceClient } from '@/lib/supabase-server';
 
 import { getAllSymbols, getSymbolHistory } from '@/lib/market-data';
 import { calculateRSIArray, analyzeRSI } from '@/lib/rsi';
-import { analyzeEMAMACD } from '@/lib/indicators';
-import { writeScanSnapshot } from '@/lib/sheets-client';
+import { analyzeEMAMACD, analyzeBBBreakout } from '@/lib/indicators';
+import { writeScanSnapshot, cleanupOldSnapshots } from '@/lib/sheets-client';
 
 // Use Edge runtime if possible? Fetching 100s of requests might be better in Node with longer timeout.
 // User didn't specify runtime. Default is Node.
@@ -83,6 +83,9 @@ export async function GET(req: NextRequest) {
                     if (history.length < 20) return null; // Not enough data
 
                     const closes = history.map(h => h.c);
+                    const highs = history.map(h => h.h);
+                    const lows = history.map(h => h.l);
+                    const volumes = history.map(h => h.v);
 
                     // 1. RSI Logic
                     const rsiSeries = calculateRSIArray(closes, 14);
@@ -91,7 +94,16 @@ export async function GET(req: NextRequest) {
                     // 2. EMA200 + MACD Logic
                     const emaMacdAnalysis = analyzeEMAMACD(closes);
 
-                    if (rsiAnalysis.value === null && emaMacdAnalysis.ema200 === null) return null;
+                    // 3. Bollinger Breakout Logic (Default params for scan)
+                    const bbAnalysis = analyzeBBBreakout(highs, lows, closes, volumes, {
+                        bbPeriod: 20,
+                        bbStdMult: 2.0,
+                        volRatioMin: 1.3,
+                        adxMin: 20,
+                        requireAdxRising: true
+                    });
+
+                    if (rsiAnalysis.value === null && emaMacdAnalysis.ema200 === null && bbAnalysis.mid === null) return null;
 
                     return {
                         symbol,
@@ -110,7 +122,19 @@ export async function GET(req: NextRequest) {
                         macd_signal: emaMacdAnalysis.macd_signal,
                         macd_hist: emaMacdAnalysis.macd_hist,
                         macd_cross: emaMacdAnalysis.macd_cross,
-                        ema200_macd_state: emaMacdAnalysis.state
+                        ema200_macd_state: emaMacdAnalysis.state,
+                        // BB fields
+                        bb_mid: bbAnalysis.mid,
+                        bb_upper: bbAnalysis.upper,
+                        bb_lower: bbAnalysis.lower,
+                        bb_bandwidth_pct: bbAnalysis.bandwidth_pct,
+                        vol: volumes[volumes.length - 1],
+                        vol_ma20: bbAnalysis.vol_ma20,
+                        vol_ratio: bbAnalysis.vol_ratio,
+                        adx14: bbAnalysis.adx14,
+                        plus_di14: bbAnalysis.plus_di14,
+                        minus_di14: bbAnalysis.minus_di14,
+                        bb_state: bbAnalysis.state
                     };
                 } catch (err) {
                     console.error(`Error processing ${symbol}`, err);
@@ -131,6 +155,9 @@ export async function GET(req: NextRequest) {
             scan_date: scanDate,
             rows: results as any[]
         });
+
+        // 4. Maintenance
+        await cleanupOldSnapshots().catch((e: any) => console.error('Cleanup failed', e));
 
         // Log Success
         await supabase.from('jobs_log').update({

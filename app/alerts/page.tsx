@@ -68,7 +68,9 @@ export default function AlertsPage() {
                                             <div className="flex justify-between items-start">
                                                 <div className="flex items-center gap-3">
                                                     <h3 className="text-xl font-black text-slate-900 group-hover:text-accent transition-colors tracking-tight">{alert.symbol}</h3>
-                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${alert.strategy === 'RSI' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${alert.strategy === 'RSI' ? 'bg-indigo-100 text-indigo-600' :
+                                                            alert.strategy === 'EMA200_MACD' ? 'bg-emerald-100 text-emerald-600' :
+                                                                'bg-amber-100 text-amber-600'}`}>
                                                         {alert.strategy}
                                                     </span>
                                                 </div>
@@ -84,11 +86,17 @@ export default function AlertsPage() {
                                                         <MetadataBadge label="RSI" value={alert.rsi} />
                                                         <MetadataBadge label="Slope" value={alert.slope_5} />
                                                     </>
-                                                ) : (
+                                                ) : alert.strategy === 'EMA200_MACD' ? (
                                                     <>
                                                         <MetadataBadge label="MACD" value={alert.macd?.toFixed(2)} />
                                                         <MetadataBadge label="Hist" value={alert.macd_hist?.toFixed(2)} />
                                                         <MetadataBadge label="EMA200" value={new Intl.NumberFormat('vi-VN').format((alert.ema200 || 0) * 1000)} />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <MetadataBadge label="VolRatio" value={`${alert.vol_ratio}x`} />
+                                                        <MetadataBadge label="ADX" value={alert.adx14} />
+                                                        <MetadataBadge label="Upper BB" value={alert.bb_upper} />
                                                     </>
                                                 )}
                                             </div>
@@ -115,7 +123,7 @@ function MetadataBadge({ label, value }: { label: string, value: any }) {
 
 function getAlertIcon(alert: any) {
     if (alert.signal_type === 'BUY') return '🚀';
-    if (alert.signal_type === 'SELL') return '⚠️';
+    if (alert.signal_type === 'SELL' || alert.signal_type === 'EXIT') return '⚠️';
     if (alert.state === 'OVERBOUGHT') return '📈';
     if (alert.state === 'OVERSOLD') return '📉';
     return '🔔';
@@ -123,6 +131,6 @@ function getAlertIcon(alert: any) {
 
 function getAlertIconStyles(alert: any) {
     if (alert.signal_type === 'BUY' || alert.state === 'OVERSOLD') return 'bg-emerald-50 text-emerald-500 border-emerald-100';
-    if (alert.signal_type === 'SELL' || alert.state === 'OVERBOUGHT') return 'bg-rose-50 text-rose-500 border-rose-100';
+    if (alert.signal_type === 'SELL' || alert.signal_type === 'EXIT' || alert.state === 'OVERBOUGHT') return 'bg-rose-50 text-rose-500 border-rose-100';
     return 'bg-blue-50 text-blue-500 border-blue-100';
 }

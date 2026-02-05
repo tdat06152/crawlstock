@@ -50,7 +50,17 @@ export async function GET(req: NextRequest) {
         // 2. Scan
         console.log('[Market Scan] Fetching symbols...');
         let symbols = await getAllSymbols();
-        console.log(`[Market Scan] Found ${symbols.length} symbols to process`);
+
+        // Plus: Get symbols from user watchlists to ensure they are scanned
+        const { data: watchlistData } = await supabase.from('watchlists').select('symbol');
+        if (watchlistData) {
+            const watchlistSymbols = watchlistData.map(w => w.symbol);
+            // Append and deduplicate
+            const combined = Array.from(new Set([...symbols, ...watchlistSymbols]));
+            symbols = combined;
+        }
+
+        console.log(`[Market Scan] Found ${symbols.length} symbols to process (including watchlists)`);
 
         const results = [];
         // Concurrency limit

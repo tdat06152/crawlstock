@@ -182,8 +182,8 @@ export default function WatchlistTable({
                                                     </span>
                                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
                                                         {sData.state === 'NEUTRAL'
-                                                            ? (sData.near_flag !== 'none' ? sData.near_flag.replace('NEAR_', '~') : 'NEUT')
-                                                            : sData.state.substr(0, 4)}
+                                                            ? (sData.near_flag !== 'none' ? sData.near_flag.replace('NEAR_', '~') : 'Theo dõi')
+                                                            : sData.state === 'OVERBOUGHT' ? 'Quá mua' : sData.state === 'OVERSOLD' ? 'Quá bán' : sData.state}
                                                     </span>
                                                 </div>
                                             ) : (
@@ -200,9 +200,9 @@ export default function WatchlistTable({
                                                         sData.ema200_macd_state.includes('SELL') ? 'bg-rose-500 text-white' :
                                                             sData.ema200_macd_state.includes('BULL') ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
                                                         }`}>
-                                                        {sData.ema200_macd_state === 'EMA200_MACD_BUY' ? 'BUY' :
-                                                            sData.ema200_macd_state === 'EMA200_MACD_SELL' ? 'SELL' :
-                                                                sData.ema200_macd_state === 'EMA200_MACD_BULL_NO_SIGNAL' ? 'BULL' : 'BEAR'}
+                                                        {sData.ema200_macd_state === 'EMA200_MACD_BUY' ? 'MUA' :
+                                                            sData.ema200_macd_state === 'EMA200_MACD_SELL' ? 'BÁN' :
+                                                                sData.ema200_macd_state === 'EMA200_MACD_BULL_NO_SIGNAL' ? 'TĂNG' : 'GIẢM'}
                                                     </div>
                                                 </div>
                                             ) : (

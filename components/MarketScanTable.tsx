@@ -289,12 +289,12 @@ function getRSIActionStyles(state: string, nearFlag: string) {
 }
 
 function getEMAMACDText(state: string, cross: string) {
-    if (state === 'EMA200_MACD_BUY') return 'Tín Hiệu Mua';
+    if (state === 'EMA200_MACD_BUY') return 'MUA MẠNH';
     if (state === 'EMA200_MACD_SELL') {
-        return cross === 'cross_down' ? 'Tín Hiệu Bán' : 'Gãy EMA200 (BÁN)';
+        return cross === 'cross_down' ? 'BÁN / CHỐT LỜI' : 'Gãy EMA200 (BÁN)';
     }
-    if (state === 'EMA200_MACD_BULL_NO_SIGNAL') return 'Xh Hướng Tăng';
-    if (state === 'EMA200_MACD_BEAR') return 'Xu Hướng Giảm';
+    if (state === 'EMA200_MACD_BULL_NO_SIGNAL') return 'Xh Tăng';
+    if (state === 'EMA200_MACD_BEAR') return 'Xh Giảm';
     return 'Theo dõi';
 }
 

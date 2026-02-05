@@ -200,9 +200,9 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                         <>
                                             <td className="px-6 py-5 text-center">
                                                 <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-xl font-black text-white text-xs shadow-lg shadow-slate-200"
-                                                    style={{ backgroundColor: getRSIColor(row.rsi || 0) }}
+                                                    style={{ backgroundColor: getRSIColor(Number(row.rsi) || 0) }}
                                                 >
-                                                    {row.rsi ? row.rsi.toFixed(1) : '--'}
+                                                    {typeof row.rsi === 'number' ? row.rsi.toFixed(1) : (Number(row.rsi) ? Number(row.rsi).toFixed(1) : '--')}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5">
@@ -211,9 +211,9 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5 text-right">
-                                                <div className={`flex items-center justify-end gap-2 font-black text-xs ${(row.slope_5 || 0) > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                    <span className="text-[10px]">{(row.slope_5 || 0) > 0 ? '▲' : '▼'}</span>
-                                                    {row.slope_5 !== null ? Math.abs(row.slope_5).toFixed(2) : '0.00'}
+                                                <div className={`flex items-center justify-end gap-2 font-black text-xs ${(Number(row.slope_5) || 0) > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                    <span className="text-[10px]">{(Number(row.slope_5) || 0) > 0 ? '▲' : '▼'}</span>
+                                                    {typeof row.slope_5 === 'number' ? Math.abs(row.slope_5).toFixed(2) : (Number(row.slope_5) ? Math.abs(Number(row.slope_5)).toFixed(2) : '0.00')}
                                                 </div>
                                             </td>
                                         </>
@@ -221,20 +221,20 @@ export default function MarketScanTable({ data }: { data: ScanRow[] }) {
                                         <>
                                             <td className="px-6 py-5 text-right">
                                                 <div className="text-xs font-bold text-slate-600 block mb-0.5">
-                                                    {new Intl.NumberFormat('vi-VN').format((row.ema200 || 0) * 1000)}
+                                                    {new Intl.NumberFormat('vi-VN').format((Number(row.ema200) || 0) * 1000)}
                                                 </div>
-                                                <div className={`text-[10px] font-black ${(row.distance_to_ema200_pct || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                    {(row.distance_to_ema200_pct || 0) > 0 ? '+' : ''}
-                                                    {row.distance_to_ema200_pct !== null ? row.distance_to_ema200_pct.toFixed(2) : '0.00'}%
+                                                <div className={`text-[10px] font-black ${(Number(row.distance_to_ema200_pct) || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                    {(Number(row.distance_to_ema200_pct) || 0) > 0 ? '+' : ''}
+                                                    {typeof row.distance_to_ema200_pct === 'number' ? row.distance_to_ema200_pct.toFixed(2) : (row.distance_to_ema200_pct && !isNaN(Number(row.distance_to_ema200_pct)) ? Number(row.distance_to_ema200_pct).toFixed(2) : '0.00')}%
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5 text-center">
                                                 <div className="flex flex-col items-center gap-1">
                                                     <div className="text-[10px] font-bold text-slate-400">
-                                                        M: <span className="text-slate-600">{row.macd !== null ? row.macd.toFixed(2) : '--'}</span> / S: <span className="text-slate-600">{row.macd_signal !== null ? row.macd_signal.toFixed(2) : '--'}</span>
+                                                        M: <span className="text-slate-600">{typeof row.macd === 'number' ? row.macd.toFixed(2) : (row.macd && !isNaN(Number(row.macd)) ? Number(row.macd).toFixed(2) : '--')}</span> / S: <span className="text-slate-600">{typeof row.macd_signal === 'number' ? row.macd_signal.toFixed(2) : (row.macd_signal && !isNaN(Number(row.macd_signal)) ? Number(row.macd_signal).toFixed(2) : '--')}</span>
                                                     </div>
-                                                    <div className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-black ${(row.macd_hist || 0) >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                        H: {row.macd_hist !== null ? row.macd_hist.toFixed(2) : '--'}
+                                                    <div className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-black ${(Number(row.macd_hist) || 0) >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                        H: {typeof row.macd_hist === 'number' ? row.macd_hist.toFixed(2) : (row.macd_hist && !isNaN(Number(row.macd_hist)) ? Number(row.macd_hist).toFixed(2) : '--')}
                                                     </div>
                                                 </div>
                                             </td>

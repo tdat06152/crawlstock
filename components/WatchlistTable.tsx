@@ -174,11 +174,11 @@ export default function WatchlistTable({
                                         <td className="px-6 py-5 text-center">
                                             {sData ? (
                                                 <div className="flex flex-col items-center gap-1.5">
-                                                    <span className={`font-black px-2.5 py-1 rounded-lg text-white text-[10px] shadow-sm ${(sData.rsi >= 70) ? 'bg-rose-500' :
-                                                        (sData.rsi <= 30) ? 'bg-emerald-500' :
-                                                            (sData.rsi <= 40) ? 'bg-lime-500' : 'bg-slate-400'
+                                                    <span className={`font-black px-2.5 py-1 rounded-lg text-white text-[10px] shadow-sm ${(Number(sData.rsi) >= 70) ? 'bg-rose-500' :
+                                                        (Number(sData.rsi) <= 30) ? 'bg-emerald-500' :
+                                                            (Number(sData.rsi) <= 40) ? 'bg-lime-500' : 'bg-slate-400'
                                                         }`}>
-                                                        {sData.rsi.toFixed(1)}
+                                                        {typeof sData.rsi === 'number' ? sData.rsi.toFixed(1) : (Number(sData.rsi) ? Number(sData.rsi).toFixed(1) : '--')}
                                                     </span>
                                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
                                                         {sData.state === 'NEUTRAL'
@@ -193,12 +193,12 @@ export default function WatchlistTable({
                                         <td className="px-6 py-5 text-center">
                                             {sData && sData.ema200 ? (
                                                 <div className="flex flex-col items-center gap-1">
-                                                    <div className={`text-[10px] font-black ${(sData.distance_to_ema200_pct >= 0) ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                        {sData.distance_to_ema200_pct > 0 ? '+' : ''}{sData.distance_to_ema200_pct.toFixed(1)}%
+                                                    <div className={`text-[10px] font-black ${(Number(sData.distance_to_ema200_pct) >= 0) ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                        {(Number(sData.distance_to_ema200_pct) || 0) > 0 ? '+' : ''}{typeof sData.distance_to_ema200_pct === 'number' ? sData.distance_to_ema200_pct.toFixed(1) : (Number(sData.distance_to_ema200_pct) ? Number(sData.distance_to_ema200_pct).toFixed(1) : '0.0')}%
                                                     </div>
                                                     <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter ${sData.ema200_macd_state.includes('BUY') ? 'bg-emerald-500 text-white' :
-                                                            sData.ema200_macd_state.includes('SELL') ? 'bg-rose-500 text-white' :
-                                                                sData.ema200_macd_state.includes('BULL') ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                                                        sData.ema200_macd_state.includes('SELL') ? 'bg-rose-500 text-white' :
+                                                            sData.ema200_macd_state.includes('BULL') ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
                                                         }`}>
                                                         {sData.ema200_macd_state === 'EMA200_MACD_BUY' ? 'BUY' :
                                                             sData.ema200_macd_state === 'EMA200_MACD_SELL' ? 'SELL' :

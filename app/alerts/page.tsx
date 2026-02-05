@@ -47,34 +47,50 @@ export default function AlertsPage() {
                 </div>
 
                 {loading ? (
-                    <div className="text-center p-10">Loading...</div>
+                    <div className="flex items-center justify-center p-20">
+                        <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+                    </div>
                 ) : (
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
                         {alerts.length === 0 ? (
-                            <div className="p-10 text-center text-slate-500">Chưa có cảnh báo nào.</div>
+                            <div className="p-20 text-center">
+                                <div className="text-5xl mb-4 grayscale opacity-20">🔔</div>
+                                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Chưa có cảnh báo nào</p>
+                            </div>
                         ) : (
-                            <div className="divide-y divide-slate-100">
+                            <div className="divide-y divide-slate-50">
                                 {alerts.map((alert) => (
-                                    <div key={alert.id} className="p-6 hover:bg-slate-50 transition-colors flex items-start gap-4">
-                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 ${alert.state?.includes('OVER') ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'
-                                            }`}>
-                                            {alert.state?.includes('OVERSOLD') ? '📉' : '📈'}
+                                    <div key={alert.id} className="p-6 hover:bg-slate-50 transition-all flex items-start gap-4 group">
+                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-sm border ${getAlertIconStyles(alert)}`}>
+                                            {getAlertIcon(alert)}
                                         </div>
                                         <div className="flex-1">
                                             <div className="flex justify-between items-start">
-                                                <h3 className="text-lg font-bold text-slate-800">{alert.symbol}</h3>
-                                                <span className="text-xs font-semibold text-slate-400">
-                                                    {new Date(alert.scan_date).toLocaleDateString()}
+                                                <div className="flex items-center gap-3">
+                                                    <h3 className="text-xl font-black text-slate-900 group-hover:text-accent transition-colors tracking-tight">{alert.symbol}</h3>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${alert.strategy === 'RSI' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                                        {alert.strategy}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {new Date(alert.scan_date).toLocaleDateString('vi-VN')}
                                                 </span>
                                             </div>
-                                            <p className="text-slate-600 font-medium mt-1">{alert.message}</p>
-                                            <div className="mt-2 flex gap-2">
-                                                <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">
-                                                    RSI: {alert.rsi}
-                                                </span>
-                                                <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">
-                                                    Slope: {alert.slope_5}
-                                                </span>
+                                            <p className="text-slate-600 font-bold mt-1 text-sm">{alert.message}</p>
+
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {alert.strategy === 'RSI' ? (
+                                                    <>
+                                                        <MetadataBadge label="RSI" value={alert.rsi} />
+                                                        <MetadataBadge label="Slope" value={alert.slope_5} />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <MetadataBadge label="MACD" value={alert.macd?.toFixed(2)} />
+                                                        <MetadataBadge label="Hist" value={alert.macd_hist?.toFixed(2)} />
+                                                        <MetadataBadge label="EMA200" value={new Intl.NumberFormat('vi-VN').format((alert.ema200 || 0) * 1000)} />
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -86,4 +102,27 @@ export default function AlertsPage() {
             </main>
         </div>
     );
+}
+
+function MetadataBadge({ label, value }: { label: string, value: any }) {
+    return (
+        <span className="inline-flex items-center gap-1.5 bg-slate-100 px-3 py-1 rounded-lg text-[10px] font-black text-slate-500 border border-slate-200 shadow-sm">
+            <span className="text-slate-400 uppercase tracking-tighter">{label}:</span>
+            <span className="text-slate-700">{value}</span>
+        </span>
+    );
+}
+
+function getAlertIcon(alert: any) {
+    if (alert.signal_type === 'BUY') return '🚀';
+    if (alert.signal_type === 'SELL') return '⚠️';
+    if (alert.state === 'OVERBOUGHT') return '📈';
+    if (alert.state === 'OVERSOLD') return '📉';
+    return '🔔';
+}
+
+function getAlertIconStyles(alert: any) {
+    if (alert.signal_type === 'BUY' || alert.state === 'OVERSOLD') return 'bg-emerald-50 text-emerald-500 border-emerald-100';
+    if (alert.signal_type === 'SELL' || alert.state === 'OVERBOUGHT') return 'bg-rose-50 text-rose-500 border-rose-100';
+    return 'bg-blue-50 text-blue-500 border-blue-100';
 }

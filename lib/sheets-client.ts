@@ -10,6 +10,13 @@ interface SheetSnapshot {
         slope_5: number | null;
         distance_to_30: number | null;
         distance_to_70: number | null;
+        ema200: number | null;
+        distance_to_ema200_pct: number | null;
+        macd: number | null;
+        macd_signal: number | null;
+        macd_hist: number | null;
+        macd_cross: string;
+        ema200_macd_state: string;
     }>;
 }
 

@@ -4,13 +4,13 @@ import { createServiceClient } from '@/lib/supabase-server';
 
 import { getAllSymbols, getSymbolHistory } from '@/lib/market-data';
 import { calculateRSIArray, analyzeRSI } from '@/lib/rsi';
+import { analyzeEMAMACD } from '@/lib/indicators';
 import { writeScanSnapshot } from '@/lib/sheets-client';
 
 // Use Edge runtime if possible? Fetching 100s of requests might be better in Node with longer timeout.
 // User didn't specify runtime. Default is Node.
 // Set max duration for Vercel Pro
-export const maxDuration = 60; // 60 seconds (Hobby limit usually 10s, Pro 300s). 
-// Attempt to run as long as possible.
+export const maxDuration = 300; // 300 seconds (Pro limit)
 
 export async function GET(req: NextRequest) {
     // 1. Auth Check (CRON_SECRET)
@@ -35,16 +35,15 @@ export async function GET(req: NextRequest) {
     const logId = crypto.randomUUID();
     console.log(`[Market Scan] Starting job with ID: ${logId}`);
 
-    // We use null for status initially because the DB constraint only allows ('OK', 'FAILED')
     const { error: logError } = await supabase.from('jobs_log').insert({
         id: logId,
         job_name: 'Market Scan',
+        status: 'OK', // Using OK as placeholder since DB might require it, or just meta
         meta: { start_time: new Date().toISOString(), phase: 'STARTED' }
     });
 
     if (logError) {
         console.error('[Market Scan] Failed to create initial log:', logError);
-        // We continue anyway, but this is a warning sign
     }
 
     try {
@@ -53,23 +52,15 @@ export async function GET(req: NextRequest) {
         let symbols = await getAllSymbols();
         console.log(`[Market Scan] Found ${symbols.length} symbols to process`);
 
-        // Shuffle or limit?
-        // For now, let's take first 200 or so to avoid timeout in Vercel Free tier.
-        // If user has Pro, they can increase this.
-        // To support "Toàn thị trường" (All Market), we need a loop that checks time remnants.
-
-        // For this demo, let's cap at 100 to ensure success.
-        // NOTE: User asked for "Toàn thị trường". I will try to process as many as possible.
-
         const results = [];
         // Concurrency limit
-        const CONCURRENCY = 10;
-        const items = symbols; // .slice(0, 100); 
+        const CONCURRENCY = 15;
+        const items = symbols;
 
         // Process in chunks
         for (let i = 0; i < items.length; i += CONCURRENCY) {
-            // Check time left (Serverless timeout usually hard kill)
-            if (Date.now() - startTime > 50000) { // Safety margin at 50s
+            // Check time left
+            if (Date.now() - startTime > 280000) { // Safety margin at 280s for Vercel Pro
                 console.log('Time limit reached, stopping scan');
                 break;
             }
@@ -77,24 +68,39 @@ export async function GET(req: NextRequest) {
             const chunk = items.slice(i, i + CONCURRENCY);
             const promises = chunk.map(async (symbol) => {
                 try {
-                    const history = await getSymbolHistory(symbol, 200);
-                    if (history.length < 15) return null; // Not enough data
+                    // Fetch 300 candles for EMA200 + MACD stability
+                    const history = await getSymbolHistory(symbol, 300);
+                    if (history.length < 20) return null; // Not enough data
 
                     const closes = history.map(h => h.c);
-                    const rsiSeries = calculateRSIArray(closes, 14);
-                    const analysis = analyzeRSI(rsiSeries);
 
-                    if (analysis.value === null) return null;
+                    // 1. RSI Logic
+                    const rsiSeries = calculateRSIArray(closes, 14);
+                    const rsiAnalysis = analyzeRSI(rsiSeries);
+
+                    // 2. EMA200 + MACD Logic
+                    const emaMacdAnalysis = analyzeEMAMACD(closes);
+
+                    if (rsiAnalysis.value === null && emaMacdAnalysis.ema200 === null) return null;
 
                     return {
                         symbol,
                         close: closes[closes.length - 1],
-                        rsi: analysis.value,
-                        state: analysis.state,
-                        near_flag: analysis.near_flag,
-                        slope_5: analysis.slope_5,
-                        distance_to_30: analysis.distance_to_30,
-                        distance_to_70: analysis.distance_to_70
+                        // RSI fields
+                        rsi: rsiAnalysis.value,
+                        state: rsiAnalysis.state,
+                        near_flag: rsiAnalysis.near_flag,
+                        slope_5: rsiAnalysis.slope_5,
+                        distance_to_30: rsiAnalysis.distance_to_30,
+                        distance_to_70: rsiAnalysis.distance_to_70,
+                        // EMA+MACD fields
+                        ema200: emaMacdAnalysis.ema200,
+                        distance_to_ema200_pct: emaMacdAnalysis.distance_to_ema200_pct,
+                        macd: emaMacdAnalysis.macd,
+                        macd_signal: emaMacdAnalysis.macd_signal,
+                        macd_hist: emaMacdAnalysis.macd_hist,
+                        macd_cross: emaMacdAnalysis.macd_cross,
+                        ema200_macd_state: emaMacdAnalysis.state
                     };
                 } catch (err) {
                     console.error(`Error processing ${symbol}`, err);
@@ -105,8 +111,8 @@ export async function GET(req: NextRequest) {
             const chunkResults = await Promise.all(promises);
             results.push(...chunkResults.filter(r => r !== null));
 
-            // Small delay to be nice to API
-            await new Promise(r => setTimeout(r, 100));
+            // Smaller delay for speed
+            await new Promise(r => setTimeout(r, 50));
         }
 
         // 3. Write to Sheets

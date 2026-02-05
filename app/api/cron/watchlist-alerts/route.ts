@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
 import { getScanSnapshot } from '@/lib/sheets-client';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
     // Auth Check
@@ -26,10 +26,8 @@ export async function GET(req: NextRequest) {
     try {
         // 1. Get Latest Scan Snapshot
         const today = new Date().toISOString().split('T')[0];
-        // Try getting today's snapshot, if empty try yesterday?
         let scanResults = await getScanSnapshot(today);
         if (!scanResults || scanResults.length === 0) {
-            // Try yesterday
             const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
             scanResults = await getScanSnapshot(yesterday);
         }
@@ -38,20 +36,16 @@ export async function GET(req: NextRequest) {
             throw new Error('No scan results found');
         }
 
-        // Index scan results by symbol for fast lookup
         const marketMap = new Map();
         scanResults.forEach((item: any) => {
             marketMap.set(item.symbol, item);
         });
 
         // 2. Get Users and Watchlists
-        // Fetch users who have alerts enabled
         const { data: settings } = await supabase
             .from('user_scan_settings')
-            .select('*')
-            .eq('enable_alerts', true);
+            .select('*');
 
-        // Fetch ALL watchlist items with user_id
         const { data: items } = await supabase
             .from('watchlist_items')
             .select('symbol, watchlist_id, watchlists!inner(user_id)');
@@ -59,75 +53,103 @@ export async function GET(req: NextRequest) {
         if (!items) return NextResponse.json({ processed: 0 });
 
         const alertsToInsert: any[] = [];
-        const seenAlerts = new Set(); // avoid duplicates for same user-symbol
+        const seenAlerts = new Set();
 
         for (const item of items) {
             const symbol = item.symbol;
-            // Handle potentially array result from Join
             const watchlistData: any = item.watchlists;
             const userId = Array.isArray(watchlistData) ? watchlistData[0]?.user_id : watchlistData?.user_id;
 
             if (!userId) continue;
 
-            // Get user settings or defaults
             const userSetting = settings?.find((s: any) => s.user_id === userId) || {
                 overbought: 70,
                 oversold: 30,
                 near_overbought_from: 65,
-                near_oversold_to: 35
+                near_oversold_to: 35,
+                enable_ema200_macd: true
             };
 
             const marketData = marketMap.get(symbol);
             if (!marketData) continue;
 
-            // Check conditions
-            let alertState = null;
-            let message = '';
-
+            // --- STRATEGY 1: RSI ---
+            let rsiState = null;
+            let rsiMessage = '';
             const rsi = marketData.rsi;
             const slope = marketData.slope_5;
 
-            if (rsi < userSetting.oversold) {
-                alertState = 'OVERSOLD';
-                message = `RSI ${rsi} (Quá bán). Momentum: ${slope}`;
-            } else if (rsi > userSetting.overbought) {
-                alertState = 'OVERBOUGHT';
-                message = `RSI ${rsi} (Quá mua). Momentum: ${slope}`;
-            } else if (rsi <= userSetting.near_oversold_to && rsi > userSetting.oversold) {
-                alertState = 'NEAR_OVERSOLD';
-                message = `Tiệm cận vùng quá bán (${rsi})`;
-            } else if (rsi >= userSetting.near_overbought_from && rsi < userSetting.overbought) {
-                alertState = 'NEAR_OVERBOUGHT';
-                message = `Tiệm cận vùng quá mua (${rsi})`;
+            if (rsi < (userSetting.oversold || 30)) {
+                rsiState = 'OVERSOLD';
+                rsiMessage = `RSI ${rsi} (Quá bán). Momentum: ${slope}`;
+            } else if (rsi > (userSetting.overbought || 70)) {
+                rsiState = 'OVERBOUGHT';
+                rsiMessage = `RSI ${rsi} (Quá mua). Momentum: ${slope}`;
             }
 
-            if (alertState) {
-                // Slope Logic: "Oversold + slope tăng" => Actionable
-                if (slope > 0 && (alertState === 'OVERSOLD' || alertState === 'NEAR_OVERSOLD')) {
-                    message += " [TÍN HIỆU HỒI PHỤC]";
+            if (rsiState) {
+                if (slope > 0 && rsiState === 'OVERSOLD') {
+                    rsiMessage += " [TÍN HIỆU HỒI PHỤC]";
                 }
 
-                const key = `${userId}-${symbol}-${marketData.scan_date}-${alertState}`;
+                const key = `${userId}-${symbol}-${marketData.scan_date}-RSI-${rsiState}`;
                 if (!seenAlerts.has(key)) {
                     alertsToInsert.push({
                         user_id: userId,
                         symbol: symbol,
                         scan_date: marketData.scan_date || today,
+                        strategy: 'RSI',
+                        signal_type: 'INFO',
                         rsi: rsi,
-                        state: alertState,
+                        state: rsiState,
                         slope_5: slope,
-                        message: message,
+                        message: rsiMessage,
                         is_sent: false
                     });
                     seenAlerts.add(key);
                 }
             }
+
+            // --- STRATEGY 2: EMA200 + MACD ---
+            if (userSetting.enable_ema200_macd !== false) {
+                const emaState = marketData.ema200_macd_state;
+                if (emaState === 'EMA200_MACD_BUY' || emaState === 'EMA200_MACD_SELL') {
+                    const signalType = emaState === 'EMA200_MACD_BUY' ? 'BUY' : 'SELL';
+                    const key = `${userId}-${symbol}-${marketData.scan_date}-EMA200_MACD-${signalType}`;
+
+                    if (!seenAlerts.has(key)) {
+                        let msg = '';
+                        if (signalType === 'BUY') {
+                            msg = `Tín hiệu MUA: MACD cắt lên Signal trong xu hướng EMA200.`;
+                        } else {
+                            msg = marketData.macd_cross === 'cross_down'
+                                ? `Tín hiệu BÁN: MACD cắt xuống Signal.`
+                                : `Tín hiệu BÁN: Giá gãy EMA200.`;
+                        }
+
+                        alertsToInsert.push({
+                            user_id: userId,
+                            symbol: symbol,
+                            scan_date: marketData.scan_date || today,
+                            strategy: 'EMA200_MACD',
+                            signal_type: signalType,
+                            ema200: marketData.ema200,
+                            macd: marketData.macd,
+                            macd_signal: marketData.macd_signal,
+                            macd_hist: marketData.macd_hist,
+                            state: emaState,
+                            message: msg,
+                            is_sent: false
+                        });
+                        seenAlerts.add(key);
+                    }
+                }
+            }
         }
 
         if (alertsToInsert.length > 0) {
-            // Upsert to avoid dupes constraint
             const { error } = await supabase.from('alerts').upsert(alertsToInsert, {
-                onConflict: 'user_id, symbol, scan_date, state'
+                onConflict: 'user_id, symbol, scan_date, strategy, signal_type'
             });
             if (error) throw error;
         }

@@ -80,3 +80,26 @@ export async function getSymbolHistory(symbol: string, days: number = 200): Prom
         return [];
     }
 }
+
+export async function getSymbolNews(symbol: string): Promise<string[]> {
+    try {
+        // Try VNDirect News API
+        const url = `https://finfo-api.vndirect.com.vn/v4/news?q=codeList:${symbol}&size=5`;
+        const res = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            next: { revalidate: 3600 } // Cache for 1 hour
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.data) {
+                return data.data.map((item: any) => `${item.title} (${new Date(item.newsDate).toLocaleDateString('vi-VN')})`);
+            }
+        }
+    } catch (e) {
+        console.warn(`Failed to fetch news for ${symbol} from VNDirect`, e);
+    }
+
+    // Fallback: Return a message indicating no news found or use a generic market news if available
+    return [];
+}

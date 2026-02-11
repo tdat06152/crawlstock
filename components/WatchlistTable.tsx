@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { WatchlistWithPrice } from '@/lib/types';
 import { isInZone } from '@/lib/alert-logic';
+import AnalysisModal from './AnalysisModal';
 
 interface WatchlistTableProps {
     watchlists: WatchlistWithPrice[];
@@ -22,6 +23,8 @@ export default function WatchlistTable({
     const [search, setSearch] = useState('');
     const [sortBy, setSortBy] = useState<'symbol' | 'price' | 'updated'>('symbol');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [analysisSymbol, setAnalysisSymbol] = useState<string | null>(null);
+    const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
 
     const filteredWatchlists = watchlists
         .filter(w => w.symbol.toLowerCase().includes(search.toLowerCase()))
@@ -50,6 +53,11 @@ export default function WatchlistTable({
             setSortBy(column);
             setSortOrder('asc');
         }
+    };
+
+    const handleOpenAnalysis = (symbol: string) => {
+        setAnalysisSymbol(symbol);
+        setIsAnalysisModalOpen(true);
     };
 
     const formatTime = (timestamp: string | undefined) => {
@@ -248,18 +256,26 @@ export default function WatchlistTable({
                                             )}
                                         </td>
                                         <td className="px-6 py-5">
-                                            <div className="flex flex-col items-start gap-2">
-                                                <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[9px] font-black tracking-[0.1em] border shadow-sm ${inZone
-                                                    ? 'bg-emerald-500 text-white border-emerald-600'
-                                                    : 'bg-slate-50 text-slate-400 border-slate-100'
-                                                    }`}>
-                                                    {inZone ? 'IN ZONE' : 'WAITING'}
-                                                </span>
+                                            <div className="flex flex-col items-start gap-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[9px] font-black tracking-[0.1em] border shadow-sm ${inZone
+                                                        ? 'bg-emerald-500 text-white border-emerald-600'
+                                                        : 'bg-slate-50 text-slate-400 border-slate-100'
+                                                        }`}>
+                                                        {inZone ? 'IN ZONE' : 'WAITING'}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => onToggle(item.id, !item.enabled)}
+                                                        className={`relative inline-flex h-4 w-8 items-center rounded-full transition-all ${item.enabled ? 'bg-accent' : 'bg-slate-200'}`}
+                                                    >
+                                                        <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${item.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                                    </button>
+                                                </div>
                                                 <button
-                                                    onClick={() => onToggle(item.id, !item.enabled)}
-                                                    className={`relative inline-flex h-4 w-8 items-center rounded-full transition-all ${item.enabled ? 'bg-accent' : 'bg-slate-200'}`}
+                                                    onClick={() => handleOpenAnalysis(item.symbol)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
                                                 >
-                                                    <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${item.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                                    <span className="text-xs">🤖</span> Phân Tích AI
                                                 </button>
                                             </div>
                                         </td>
@@ -292,6 +308,14 @@ export default function WatchlistTable({
                     </tbody>
                 </table>
             </div>
+
+            {analysisSymbol && (
+                <AnalysisModal
+                    symbol={analysisSymbol}
+                    isOpen={isAnalysisModalOpen}
+                    onClose={() => setIsAnalysisModalOpen(false)}
+                />
+            )}
         </div>
     );
 }

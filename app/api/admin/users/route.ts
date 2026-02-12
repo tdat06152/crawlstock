@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
     const { data: { users }, error: authError } = await serviceClient.auth.admin.listUsers();
     if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
 
-    // 4. Fetch profiles to get roles and expiry
-    const { data: profiles } = await supabase.from('profiles').select('*');
+    // 4. Fetch profiles to get roles and expiry (Use serviceClient to bypass RLS)
+    const { data: profiles } = await serviceClient.from('profiles').select('*');
+
     const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
     // 5. Merge data
@@ -60,24 +61,27 @@ export async function POST(request: NextRequest) {
 
     if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
 
-    // 4. Use upsert to be safe (it will create or update)
+    // 4. Use upsert with date fix
+    const upsertData: any = {
+        id: authData.user.id,
+        email: email,
+        role: role || 'user',
+        updated_at: new Date().toISOString()
+    };
+
+    if (expires_at) {
+        upsertData.expires_at = new Date(expires_at).toISOString();
+    } else {
+        upsertData.expires_at = null;
+    }
+
     const { data: profileData, error: profileError } = await serviceClient
         .from('profiles')
-        .upsert({
-            id: authData.user.id,
-            email: email,
-            role: role || 'user',
-            expires_at: expires_at || null,
-            updated_at: new Date().toISOString()
-        })
+        .upsert(upsertData)
         .select()
         .single();
 
-    if (profileError) {
-        console.error('Profile creation error:', profileError);
-        return NextResponse.json({ error: profileError.message }, { status: 500 });
-    }
-
+    if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
 
     return NextResponse.json(profileData);
 }
@@ -92,26 +96,22 @@ export async function PUT(request: NextRequest) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (!profile || profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    // 2. Update profile (Use upsert to handle cases where profile doesn't exist yet)
+    // 2. Update profile
     const { id, role, expires_at, password, email } = await request.json();
     if (!id) return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
 
     const upsertData: any = { id };
     if (role) upsertData.role = role;
+    if (email) upsertData.email = email;
+    upsertData.updated_at = new Date().toISOString();
 
-    // Handle expires_at formatting
     if (expires_at !== undefined) {
         if (expires_at) {
-            // If it's just a date (YYYY-MM-DD), set to end of day to be safe
             upsertData.expires_at = new Date(expires_at).toISOString();
         } else {
             upsertData.expires_at = null;
         }
     }
-
-    if (email) upsertData.email = email;
-    upsertData.updated_at = new Date().toISOString();
-
 
     const { data, error } = await serviceClient
         .from('profiles')
@@ -119,22 +119,19 @@ export async function PUT(request: NextRequest) {
         .select()
         .single();
 
-    if (error) {
-        console.error('Profile update/upsert error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     // 3. Optional password reset
     if (password) {
         const { error: passError } = await serviceClient.auth.admin.updateUserById(id, {
             password: password
         });
-        if (passError) return NextResponse.json({ error: 'Profile updated, but password reset failed: ' + passError.message }, { status: 500 });
+        if (passError) return NextResponse.json({ error: 'Profile updated, but password reset failed' }, { status: 500 });
     }
 
     return NextResponse.json(data);
 }
+
 
 export async function DELETE(request: NextRequest) {
     const supabase = await getServerClient();

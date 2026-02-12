@@ -89,22 +89,27 @@ export async function PUT(request: NextRequest) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (!profile || profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    // 2. Update profile
-    const { id, role, expires_at, password } = await request.json();
+    // 2. Update profile (Use upsert to handle cases where profile doesn't exist yet)
+    const { id, role, expires_at, password, email } = await request.json();
     if (!id) return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
 
-    const updates: any = {};
-    if (role) updates.role = role;
-    if (expires_at !== undefined) updates.expires_at = expires_at;
+    const upsertData: any = { id };
+    if (role) upsertData.role = role;
+    if (expires_at !== undefined) upsertData.expires_at = expires_at;
+    if (email) upsertData.email = email;
+    upsertData.updated_at = new Date().toISOString();
 
     const { data, error } = await serviceClient
         .from('profiles')
-        .update(updates)
-        .eq('id', id)
+        .upsert(upsertData)
         .select()
         .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+        console.error('Profile update/upsert error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
 
     // 3. Optional password reset
     if (password) {

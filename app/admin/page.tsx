@@ -73,7 +73,7 @@ export default function AdminPage() {
     const handleSave = async () => {
         const method = isEdit ? 'PUT' : 'POST';
         const body = isEdit
-            ? { id: modalData.id, role: modalData.role, expires_at: modalData.expires_at || null, password: modalData.password || undefined }
+            ? { id: modalData.id, email: modalData.email, role: modalData.role, expires_at: modalData.expires_at || null, password: modalData.password || undefined }
             : { email: modalData.email, password: modalData.password, role: modalData.role, expires_at: modalData.expires_at || null };
 
         try {

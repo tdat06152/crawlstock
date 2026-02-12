@@ -3,36 +3,36 @@ import { createServiceClient, getServerClient } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
     const supabase = await getServerClient();
+    const serviceClient = createServiceClient();
 
     // 1. Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // 2. Verify user is an admin
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+    // 2. Verify admin
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (!profile || profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    if (!profile || profile.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // 3. Fetch users from AUTH (The source of truth)
+    const { data: { users }, error: authError } = await serviceClient.auth.admin.listUsers();
+    if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
 
-    // 3. Fetch all profiles
-    const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+    // 4. Fetch profiles to get roles and expiry
+    const { data: profiles } = await supabase.from('profiles').select('*');
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
-    if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // 5. Merge data
+    const combined = users.map(u => ({
+        id: u.id,
+        email: u.email,
+        role: profileMap.get(u.id)?.role || 'user',
+        expires_at: profileMap.get(u.id)?.expires_at || null,
+        created_at: u.created_at
+    }));
 
-    return NextResponse.json(profiles);
+    return NextResponse.json(combined);
 }
+
 
 export async function POST(request: NextRequest) {
     const supabase = await getServerClient();

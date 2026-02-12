@@ -1,12 +1,46 @@
 
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-client';
 
 export default function Header({ user }: { user: any }) {
     const router = useRouter();
     const supabase = createClient();
+    const [role, setRole] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (user) {
+            fetchProfile();
+        }
+    }, [user]);
+
+    const fetchProfile = async () => {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('role, expires_at')
+            .eq('id', user.id)
+            .single();
+
+        if (data) {
+            setRole(data.role);
+
+            // Check expiration
+            if (data.expires_at) {
+                const expiry = new Date(data.expires_at);
+                const now = new Date();
+                if (now > expiry) {
+                    alert('Tài khoản của bạn đã hết hạn sử dụng. Vui lòng liên hệ Admin.');
+                    handleSignOut();
+                }
+            }
+        } else {
+            setRole('user');
+        }
+    };
+
+
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
@@ -36,13 +70,23 @@ export default function Header({ user }: { user: any }) {
                             <NavLink href="/" label="Danh Mục" />
                             <NavLink href="/market-scan" label="Tín Hiệu Thị Trường" />
                             <NavLink href="/alerts" label="Cảnh Báo" />
+                            {role === 'admin' && (
+                                <NavLink href="/admin" label="Quản Trị" />
+                            )}
                         </nav>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <span className="hidden sm:inline text-xs font-medium text-slate-500">
-                            {user?.email?.split('@')[0]}
-                        </span>
+                        <div className="flex flex-col items-end">
+                            <span className="hidden sm:inline text-xs font-bold text-slate-900">
+                                {user?.email?.split('@')[0]}
+                            </span>
+                            {role && (
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-bold ${role === 'admin' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
+                                    {role}
+                                </span>
+                            )}
+                        </div>
                         <button
                             onClick={handleSignOut}
                             className="px-4 py-2 text-sm font-semibold border border-red-200 text-red-600 rounded-full hover:bg-red-50 transition-colors"
@@ -55,6 +99,7 @@ export default function Header({ user }: { user: any }) {
         </header>
     );
 }
+
 
 function NavLink({ href, label }: { href: string; label: string }) {
     const router = useRouter();

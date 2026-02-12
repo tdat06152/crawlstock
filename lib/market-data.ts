@@ -82,24 +82,60 @@ export async function getSymbolHistory(symbol: string, days: number = 200): Prom
 }
 
 export async function getSymbolNews(symbol: string): Promise<string[]> {
+    const news: string[] = [];
+
+    // Nguồn 1: VNDirect
     try {
-        // Try VNDirect News API
         const url = `https://finfo-api.vndirect.com.vn/v4/news?q=codeList:${symbol}&size=5`;
         const res = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
-            next: { revalidate: 3600 } // Cache for 1 hour
+            next: { revalidate: 1800 } // 30 mins
         });
-
         if (res.ok) {
             const data = await res.json();
-            if (data && data.data) {
-                return data.data.map((item: any) => `${item.title} (${new Date(item.newsDate).toLocaleDateString('vi-VN')})`);
+            if (data?.data) {
+                const items = data.data.map((item: any) => `${item.title} (${new Date(item.newsDate).toLocaleDateString('vi-VN')})`);
+                news.push(...items);
             }
         }
     } catch (e) {
-        console.warn(`Failed to fetch news for ${symbol} from VNDirect`, e);
+        console.warn(`VNDirect news failed for ${symbol}`, e);
     }
 
-    // Fallback: Return a message indicating no news found or use a generic market news if available
+    // Nguồn 2: CafeF (Qua API công khai nếu có hoặc RSS - giả lập logic fetch từ search/feeds)
+    // Thực tế nhiều bên dùng FireAnt hoặc CafeF RSS.
+    if (news.length < 3) {
+        try {
+            // Giả lập hoặc gọi nguồn tin tức tổng hợp từ một API ổn định hơn
+            const res = await fetch(`https://fireant.vn/api/content/news/symbol?symbol=${symbol}&size=3`, {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    news.push(...data.map((n: any) => n.title));
+                }
+            }
+        } catch (e) { }
+    }
+
+    return [...new Set(news)].slice(0, 5);
+}
+
+export async function getMarketNews(): Promise<string[]> {
+    try {
+        // Lấy tin tức chung của thị trường (VNDirect market news)
+        const url = `https://finfo-api.vndirect.com.vn/v4/news?q=type:market&size=5`;
+        const res = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            next: { revalidate: 3600 }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            return data?.data?.map((item: any) => item.title) || [];
+        }
+    } catch (e) {
+        console.warn('Market news fetch failed', e);
+    }
     return [];
 }

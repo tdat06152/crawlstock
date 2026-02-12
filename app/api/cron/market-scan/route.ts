@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createServiceClient } from '@/lib/supabase-server';
 
-import { getAllSymbols, getSymbolHistory } from '@/lib/market-data';
+import { getAllSymbols, getSymbolHistory, getSymbolNews, getMarketNews } from '@/lib/market-data';
 import { calculateRSIArray, analyzeRSI } from '@/lib/rsi';
 import { analyzeEMAMACD, analyzeBBBreakout } from '@/lib/indicators';
 import { writeScanSnapshot, cleanupOldSnapshots } from '@/lib/sheets-client';
+import { analyzeStockStrategyConcise } from '@/lib/gemini';
+import { sendTelegramMessage } from '@/lib/telegram';
 
 // Use Edge runtime if possible? Fetching 100s of requests might be better in Node with longer timeout.
 // User didn't specify runtime. Default is Node.
@@ -163,6 +165,63 @@ export async function GET(req: NextRequest) {
 
         // 4. Maintenance
         await cleanupOldSnapshots().catch((e: any) => console.error('Cleanup failed', e));
+
+        // 5. Market Signal Alerts (New)
+        try {
+            const marketContext = await getMarketNews();
+
+            const buySignals = results.filter(r =>
+                r.state === 'OVERSOLD' ||
+                r.ema200_macd_state === 'EMA200_MACD_BUY' ||
+                r.bb_state === 'BB_BREAKOUT_BUY'
+            ).slice(0, 5); // Limit to top 5 to avoid spam
+
+            const sellSignals = results.filter(r =>
+                r.state === 'OVERBOUGHT' ||
+                r.ema200_macd_state === 'EMA200_MACD_SELL' ||
+                r.bb_state === 'BB_BREAKOUT_EXIT'
+            ).slice(0, 5); // Limit to top 5
+
+            const allSignals = [...buySignals, ...sellSignals];
+
+            if (allSignals.length > 0) {
+                console.log(`[Market Scan] Found ${allSignals.length} market signals. Sending alerts...`);
+
+                for (const signal of allSignals) {
+                    const news = await getSymbolNews(signal.symbol);
+                    const aiAnalysis = await analyzeStockStrategyConcise({
+                        symbol: signal.symbol,
+                        close: signal.close,
+                        indicators: {
+                            rsi: { value: signal.rsi, state: signal.state },
+                            ema_macd: { state: signal.ema200_macd_state, macd_hist: signal.macd_hist },
+                            bb: { state: signal.bb_state, vol_ratio: signal.vol_ratio }
+                        },
+                        news: news,
+                        marketContext: marketContext
+                    });
+
+                    const type = buySignals.includes(signal) ? '🟢 MUA' : '🔴 BÁN';
+                    const message = `
+<b>[TÍN HIỆU THỊ TRƯỜNG]</b>
+Mã: <b>${signal.symbol}</b> - ${type}
+Giá: ${signal.close.toLocaleString('vi-VN')}
+
+<b>Phân tích kỹ thuật:</b>
+- RSI: ${signal.rsi} (${signal.state})
+- EMA/MACD: ${signal.ema200_macd_state}
+- BB: ${signal.bb_state} (Vol: ${signal.vol_ratio}x)
+
+<b>AI Phân tích:</b>
+<i>${aiAnalysis}</i>
+`.trim();
+
+                    await sendTelegramMessage(message);
+                }
+            }
+        } catch (alertErr) {
+            console.error('[Market Scan] Alert processing failed:', alertErr);
+        }
 
         // Log Success
         await supabase.from('jobs_log').update({

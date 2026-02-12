@@ -9,6 +9,10 @@ import {
 } from '@/lib/alert-logic';
 import { Watchlist, WatchlistState } from '@/lib/types';
 import { sendTelegramMessage } from '@/lib/telegram';
+import { getSymbolNews } from '@/lib/market-data';
+import { analyzeStockStrategyConcise } from '@/lib/gemini';
+import { calculateRSIArray, analyzeRSI } from '@/lib/rsi';
+import { analyzeEMAMACD, analyzeBBBreakout } from '@/lib/indicators';
 
 export async function GET(request: NextRequest) {
     // Verify cron secret
@@ -127,13 +131,44 @@ export async function GET(request: NextRequest) {
                         console.log(`Alert created for ${watchlist.symbol} at ${priceData.price}`);
 
                         // Gửi tin nhắn Telegram
-                        const telegramMsg = `
-<b>ALERT: ${watchlist.symbol} is IN ZONE</b>
+                        let aiAnalysis = '';
+                        try {
+                            const news = await getSymbolNews(watchlist.symbol);
+                            // Fetch some history for indicators
+                            const { getSymbolHistory } = await import('@/lib/market-data');
+                            const history = await getSymbolHistory(watchlist.symbol, 100);
+                            const closes = history.map(h => h.c);
+                            const highs = history.map(h => h.h);
+                            const lows = history.map(h => h.l);
+                            const volumes = history.map(h => h.v);
 
-• Price: <b>${priceData.price}</b>
-• Target: ${watchlist.buy_min} - ${watchlist.buy_max}
-• ${reason}
-• ${new Date().toLocaleString('vi-VN')}
+                            const rsi = analyzeRSI(calculateRSIArray(closes));
+                            const emaMacd = analyzeEMAMACD(closes);
+                            const bb = analyzeBBBreakout(highs, lows, closes, volumes);
+
+                            aiAnalysis = await analyzeStockStrategyConcise({
+                                symbol: watchlist.symbol,
+                                close: priceData.price,
+                                indicators: {
+                                    rsi: { value: rsi.value, state: rsi.state },
+                                    ema_macd: { state: emaMacd.state },
+                                    bb: { state: bb.state }
+                                },
+                                news
+                            });
+                        } catch (aiErr) {
+                            console.warn('AI Analysis failed for price alert:', aiErr);
+                        }
+
+                        const telegramMsg = `
+<b>🔔 ALERT: ${watchlist.symbol}</b>
+Giá: <b>${priceData.price}</b> (Vào vùng: ${watchlist.buy_min} - ${watchlist.buy_max})
+Hành động: <b>${reason}</b>
+
+<b>AI Nhận định:</b>
+<i>${aiAnalysis || 'Đang cập nhật...'}</i>
+
+🕒 ${new Date().toLocaleString('vi-VN')}
                         `.trim();
 
                         await sendTelegramMessage(telegramMsg);

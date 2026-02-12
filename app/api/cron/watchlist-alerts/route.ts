@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
 import { getScanSnapshot } from '@/lib/sheets-client';
+import { getSymbolNews, getMarketNews } from '@/lib/market-data';
+import { analyzeStockStrategyConcise } from '@/lib/gemini';
+import { sendTelegramMessage } from '@/lib/telegram';
 
 export const maxDuration = 300;
 
@@ -24,6 +27,8 @@ export async function GET(req: NextRequest) {
     });
 
     try {
+        const marketContext = await getMarketNews();
+
         // 1. Get Latest Scan Snapshot
         const today = new Date().toISOString().split('T')[0];
         let scanResults = await getScanSnapshot(today);
@@ -107,6 +112,33 @@ export async function GET(req: NextRequest) {
                         is_sent: false
                     });
                     seenAlerts.add(key);
+
+                    // AI Analysis & Telegram (New)
+                    try {
+                        const news = await getSymbolNews(symbol);
+                        const aiAnalysis = await analyzeStockStrategyConcise({
+                            symbol,
+                            close: marketData.close,
+                            indicators: {
+                                rsi: { value: rsi, state: rsiState }
+                            },
+                            news,
+                            marketContext
+                        });
+
+                        const typeEmoji = rsiState === 'OVERSOLD' ? '🟢 THEO DÕI MUA' : '🔴 THEO DÕI BÁN';
+                        const telegramMsg = `
+<b>[DANH MỤC] ${symbol}</b> - ${typeEmoji}
+Chiến lược: RSI Quá ${rsiState === 'OVERSOLD' ? 'bán' : 'mua'}
+Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
+
+<b>Phân tích AI:</b>
+<i>${aiAnalysis}</i>
+`.trim();
+                        await sendTelegramMessage(telegramMsg);
+                    } catch (aiErr) {
+                        console.error(`AI Analysis failed for ${symbol}:`, aiErr);
+                    }
                 }
             }
 
@@ -142,6 +174,33 @@ export async function GET(req: NextRequest) {
                             is_sent: false
                         });
                         seenAlerts.add(key);
+
+                        // AI Analysis & Telegram (New)
+                        try {
+                            const news = await getSymbolNews(symbol);
+                            const aiAnalysis = await analyzeStockStrategyConcise({
+                                symbol,
+                                close: marketData.close,
+                                indicators: {
+                                    ema_macd: { state: emaState, macd_hist: marketData.macd_hist }
+                                },
+                                news,
+                                marketContext
+                            });
+
+                            const typeEmoji = signalType === 'BUY' ? '🟢 MUA' : '🔴 BÁN';
+                            const telegramMsg = `
+<b>[DANH MỤC] ${symbol}</b> - ${typeEmoji}
+Chiến lược: EMA200 + MACD
+Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
+
+<b>Phân tích AI:</b>
+<i>${aiAnalysis}</i>
+`.trim();
+                            await sendTelegramMessage(telegramMsg);
+                        } catch (aiErr) {
+                            console.error(`AI Analysis failed for ${symbol}:`, aiErr);
+                        }
                     }
                 }
             }
@@ -192,6 +251,33 @@ export async function GET(req: NextRequest) {
                             is_sent: false
                         });
                         seenAlerts.add(key);
+
+                        // AI Analysis & Telegram (New)
+                        try {
+                            const news = await getSymbolNews(symbol);
+                            const aiAnalysis = await analyzeStockStrategyConcise({
+                                symbol,
+                                close: marketData.close,
+                                indicators: {
+                                    bb: { state: bbState, vol_ratio: marketData.vol_ratio }
+                                },
+                                news,
+                                marketContext
+                            });
+
+                            const typeEmoji = signalType === 'BUY' ? '🟢 MUA (Breakout)' : (signalType === 'EXIT' ? '🔴 THOÁT' : 'ℹ️ CHÚ Ý');
+                            const telegramMsg = `
+<b>[DANH MỤC] ${symbol}</b> - ${typeEmoji}
+Chiến lược: Bollinger Breakout
+Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
+
+<b>Phân tích AI:</b>
+<i>${aiAnalysis}</i>
+`.trim();
+                            await sendTelegramMessage(telegramMsg);
+                        } catch (aiErr) {
+                            console.error(`AI Analysis failed for ${symbol}:`, aiErr);
+                        }
                     }
                 }
             }

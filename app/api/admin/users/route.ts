@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient, getServerClient } from '@/lib/supabase-server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
+
     const supabase = await getServerClient();
     const serviceClient = createServiceClient();
 
@@ -95,9 +98,20 @@ export async function PUT(request: NextRequest) {
 
     const upsertData: any = { id };
     if (role) upsertData.role = role;
-    if (expires_at !== undefined) upsertData.expires_at = expires_at;
+
+    // Handle expires_at formatting
+    if (expires_at !== undefined) {
+        if (expires_at) {
+            // If it's just a date (YYYY-MM-DD), set to end of day to be safe
+            upsertData.expires_at = new Date(expires_at).toISOString();
+        } else {
+            upsertData.expires_at = null;
+        }
+    }
+
     if (email) upsertData.email = email;
     upsertData.updated_at = new Date().toISOString();
+
 
     const { data, error } = await serviceClient
         .from('profiles')

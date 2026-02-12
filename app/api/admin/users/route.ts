@@ -57,15 +57,24 @@ export async function POST(request: NextRequest) {
 
     if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
 
-    // 4. Trigger might handle profile, but we update explicit fields
+    // 4. Use upsert to be safe (it will create or update)
     const { data: profileData, error: profileError } = await serviceClient
         .from('profiles')
-        .update({ role: role || 'user', expires_at: expires_at || null })
-        .eq('id', authData.user.id)
+        .upsert({
+            id: authData.user.id,
+            email: email,
+            role: role || 'user',
+            expires_at: expires_at || null,
+            updated_at: new Date().toISOString()
+        })
         .select()
         .single();
 
-    if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
+    if (profileError) {
+        console.error('Profile creation error:', profileError);
+        return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
 
     return NextResponse.json(profileData);
 }

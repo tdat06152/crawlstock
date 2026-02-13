@@ -77,7 +77,10 @@ export default function Header({ user }: { user: any }) {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className="flex flex-col items-end">
+                        <button
+                            onClick={() => router.push('/profile')}
+                            className="flex flex-col items-end hover:bg-slate-50 px-3 py-1.5 rounded-xl transition-colors"
+                        >
                             <span className="hidden sm:inline text-xs font-bold text-slate-900">
                                 {user?.email?.split('@')[0]}
                             </span>
@@ -86,7 +89,7 @@ export default function Header({ user }: { user: any }) {
                                     {role}
                                 </span>
                             )}
-                        </div>
+                        </button>
                         <button
                             onClick={handleSignOut}
                             className="px-4 py-2 text-sm font-semibold border border-red-200 text-red-600 rounded-full hover:bg-red-50 transition-colors"

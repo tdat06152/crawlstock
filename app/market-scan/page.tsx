@@ -13,20 +13,7 @@ export default function MarketScanPage() {
     // 1. Check Auth
     // 2. Fetch snapshot (default today)
 
-    const [date, setDate] = useState(() => {
-        const now = new Date();
-        const hour = now.getHours();
-        const minute = now.getMinutes();
-
-        // Nếu trước 15:30, lấy ngày hôm trước (hoặc ngày gần nhất có dữ liệu)
-        // Nhưng yêu cầu là "trước 15h30 cứ để ngày hôm trước"
-        if (hour < 15 || (hour === 15 && minute < 30)) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            return yesterday.toISOString().split('T')[0];
-        }
-        return now.toISOString().split('T')[0];
-    });
+    const [date, setDate] = useState('');
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<any>(null);
@@ -40,10 +27,30 @@ export default function MarketScanPage() {
             if (!user) router.push('/login');
             setUser(user);
         });
+
+        // Đặt ngày mặc định dựa trên giờ địa phương (trước 15:30 lấy hôm qua)
+        const now = new Date();
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+
+        let targetDate = new Date();
+        if (hour < 15 || (hour === 15 && minute < 30)) {
+            targetDate.setDate(targetDate.getDate() - 1);
+        }
+
+        const year = targetDate.getFullYear();
+        const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const day = String(targetDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        setDate(dateStr);
     }, []);
 
     useEffect(() => {
-        loadData(date);
+        // Only load data if date is set (after initial useEffect)
+        if (date) {
+            loadData(date);
+        }
     }, [date]);
 
     const loadData = async (targetDate: string) => {

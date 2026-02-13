@@ -128,13 +128,22 @@ export async function GET(request: NextRequest) {
                         console.error(`Error creating alert for ${watchlist.symbol}:`, alertError);
                     } else {
                         alertsCreated++;
-                        console.log(`Alert created for ${watchlist.symbol} at ${priceData.price}`);
+                        console.log(`Price Alert created for ${watchlist.symbol} at ${priceData.price}`);
 
-                        // Gửi tin nhắn Telegram
-                        let aiAnalysis = '';
+                        // 1. Send Simple Price Alert (No AI)
+                        const simpleMsg = `
+<b>🔔 CẢNH BÁO GIÁ: ${watchlist.symbol}</b>
+Trạng thái: <b>Vào vùng mua (Inzone)</b>
+Giá hiện tại: <b>${priceData.price.toLocaleString('vi-VN')}</b>
+Chi tiết: <i>${reason}</i>
+
+🕒 ${new Date().toLocaleString('vi-VN')}
+                        `.trim();
+                        await sendTelegramMessage(simpleMsg);
+
+                        // 2. Check for Potential Signal (3 Patterns Aligned)
                         try {
-                            const news = await getSymbolNews(watchlist.symbol);
-                            // Fetch some history for indicators
+                            // Fetch history for indicators
                             const { getSymbolHistory } = await import('@/lib/market-data');
                             const history = await getSymbolHistory(watchlist.symbol, 100);
                             const closes = history.map(h => h.c);
@@ -146,32 +155,46 @@ export async function GET(request: NextRequest) {
                             const emaMacd = analyzeEMAMACD(closes);
                             const bb = analyzeBBBreakout(highs, lows, closes, volumes);
 
-                            aiAnalysis = await analyzeStockStrategyConcise({
-                                symbol: watchlist.symbol,
-                                close: priceData.price,
-                                indicators: {
-                                    rsi: { value: rsi.value, state: rsi.state },
-                                    ema_macd: { state: emaMacd.state },
-                                    bb: { state: bb.state }
-                                },
-                                news
-                            });
-                        } catch (aiErr) {
-                            console.warn('AI Analysis failed for price alert:', aiErr);
-                        }
+                            // Logic: 3 mẫu hình cùng chiều (BUY hoặc SELL)
+                            const isRsiBuy = rsi.state === 'OVERSOLD' || rsi.near_flag === 'NEAR_OVERSOLD' || ((rsi.value || 0) < 40 && (rsi.slope_5 || 0) > 0);
+                            const isEmaBuy = emaMacd.state === 'EMA200_MACD_BUY';
+                            const isBbBuy = bb.state === 'BB_BREAKOUT_BUY';
 
-                        const telegramMsg = `
-<b>🔔 ALERT: ${watchlist.symbol}</b>
-Giá: <b>${priceData.price}</b> (Vào vùng: ${watchlist.buy_min} - ${watchlist.buy_max})
-Hành động: <b>${reason}</b>
+                            const isRsiSell = rsi.state === 'OVERBOUGHT' || rsi.near_flag === 'NEAR_OVERBOUGHT';
+                            const isEmaSell = emaMacd.state === 'EMA200_MACD_SELL';
+                            const isBbSell = bb.state === 'BB_BREAKOUT_EXIT';
 
-<b>AI Nhận định:</b>
-<i>${aiAnalysis || 'Đang cập nhật...'}</i>
+                            const isPotentialBuy = isRsiBuy && isEmaBuy && isBbBuy;
+                            const isPotentialSell = isRsiSell && isEmaSell && isBbSell;
+
+                            if (isPotentialBuy || isPotentialSell) {
+                                console.log(`Potential Signal detected for ${watchlist.symbol}! Running AI...`);
+                                const news = await getSymbolNews(watchlist.symbol);
+                                const aiAnalysis = await analyzeStockStrategyConcise({
+                                    symbol: watchlist.symbol,
+                                    close: priceData.price,
+                                    indicators: {
+                                        rsi: { value: rsi.value, state: rsi.state },
+                                        ema_macd: { state: emaMacd.state },
+                                        bb: { state: bb.state }
+                                    },
+                                    news
+                                });
+
+                                const signalMsg = `
+<b>🚀 TÍN HIỆU TIỀM NĂNG: ${watchlist.symbol}</b>
+Mô tả: <b>3 mẫu hình kỹ thuật cùng xác nhận chiều ${isPotentialBuy ? 'MUA' : 'BÁN'}</b>
+
+<b>🤖 AI NHẬN ĐỊNH:</b>
+${aiAnalysis}
 
 🕒 ${new Date().toLocaleString('vi-VN')}
-                        `.trim();
-
-                        await sendTelegramMessage(telegramMsg);
+                                `.trim();
+                                await sendTelegramMessage(signalMsg);
+                            }
+                        } catch (sigErr) {
+                            console.warn('Potential signal check failed:', sigErr);
+                        }
                     }
                 }
             }

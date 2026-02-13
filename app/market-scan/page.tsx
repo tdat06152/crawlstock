@@ -13,7 +13,20 @@ export default function MarketScanPage() {
     // 1. Check Auth
     // 2. Fetch snapshot (default today)
 
-    const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(() => {
+        const now = new Date();
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+
+        // Nếu trước 15:30, lấy ngày hôm trước (hoặc ngày gần nhất có dữ liệu)
+        // Nhưng yêu cầu là "trước 15h30 cứ để ngày hôm trước"
+        if (hour < 15 || (hour === 15 && minute < 30)) {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            return yesterday.toISOString().split('T')[0];
+        }
+        return now.toISOString().split('T')[0];
+    });
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<any>(null);
@@ -66,6 +79,9 @@ export default function MarketScanPage() {
                         <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">Tín Hiệu Thị Trường</h2>
                         <p className="text-slate-500">
                             Phân tích RSI hằng ngày và phát hiện điểm mua tiềm năng.
+                        </p>
+                        <p className="text-[10px] font-bold text-accent uppercase tracking-wider mt-1 opacity-80">
+                            🕒 Dữ liệu được cập nhật vào 15h30 các ngày trong tuần
                         </p>
                     </div>
 

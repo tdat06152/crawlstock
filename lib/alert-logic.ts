@@ -66,13 +66,13 @@ export function generateAlertReason(
     buyMin: number | null,
     buyMax: number | null
 ): string {
-    const formattedPrice = price.toLocaleString();
+    const formattedPrice = price.toLocaleString('vi-VN');
     if (buyMin !== null && buyMax !== null) {
-        return `${symbol} entered buy zone: ${formattedPrice} (range: ${buyMin.toLocaleString()} - ${buyMax.toLocaleString()})`;
+        return `${symbol} tiến vào vùng mua (Inzone): ${formattedPrice} (Vùng: ${buyMin.toLocaleString('vi-VN')} - ${buyMax.toLocaleString('vi-VN')})`;
     } else if (buyMin !== null) {
-        return `${symbol} above buy minimum: ${formattedPrice} (min: ${buyMin.toLocaleString()})`;
+        return `${symbol} vượt mức tối thiểu: ${formattedPrice} (Tối thiểu: ${buyMin.toLocaleString('vi-VN')})`;
     } else if (buyMax !== null) {
-        return `${symbol} below buy maximum: ${formattedPrice} (max: ${buyMax.toLocaleString()})`;
+        return `${symbol} dưới mức tối đa: ${formattedPrice} (Tối đa: ${buyMax.toLocaleString('vi-VN')})`;
     }
-    return `${symbol} price update: ${formattedPrice}`;
+    return `${symbol} cập nhật giá: ${formattedPrice}`;
 }

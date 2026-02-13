@@ -32,9 +32,9 @@ Khoảng thời gian: ${data.period} (Dữ liệu 1 tuần gần nhất).
 ${data.news.length > 0 ? data.news.slice(0, 3).join('\n') : 'Không có.'}
 
 **Yêu cầu phân tích TIÊU ĐIỂM (Tối đa 250 từ):**
-1. Xu hướng chính dựa trên 3 mẫu hình (RSI/EMA/BB).
-2. Tác động cốt lõi của tin tức.
-3. Chiến lược hành động (Mua/Bán/Đợi) + Vùng Target / Stoploss cụ thể.
+1. Phân tích chi tiết 3 mẫu hình kỹ thuật (RSI, EMA200/MACD, Bollinger Bands) để xác định xu hướng.
+2. Quét và đánh giá tác động của các tin tức gần đây đối với mã này.
+3. Đưa ra chiến lược hành động cụ thể (Mua/Bán/Đợi) kèm vùng Target và Stoploss.
 
 Hãy trả lời bằng tiếng Việt, trình bày súc tích, chuyên nghiệp bằng markdown.
 `.trim();

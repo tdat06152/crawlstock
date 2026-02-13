@@ -262,7 +262,7 @@ export default function WatchlistTable({
                                                         ? 'bg-emerald-500 text-white border-emerald-600'
                                                         : 'bg-slate-50 text-slate-400 border-slate-100'
                                                         }`}>
-                                                        {inZone ? 'IN ZONE' : 'WAITING'}
+                                                        {inZone ? 'VÀO VÙNG' : 'CHỜ ĐỢI'}
                                                     </span>
                                                     <button
                                                         onClick={() => onToggle(item.id, !item.enabled)}

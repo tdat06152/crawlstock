@@ -146,6 +146,7 @@ export default function AdminPage() {
                             <tr>
                                 <th className="px-8 py-5 font-bold text-slate-800 text-sm uppercase tracking-wider">Email</th>
                                 <th className="px-8 py-5 font-bold text-slate-800 text-sm uppercase tracking-wider">Quyền</th>
+                                <th className="px-8 py-5 font-bold text-slate-800 text-sm uppercase tracking-wider text-center">Nâng cấp PRO</th>
                                 <th className="px-8 py-5 font-bold text-slate-800 text-sm uppercase tracking-wider">Hết hạn</th>
                                 <th className="px-8 py-5 font-bold text-slate-800 text-sm uppercase tracking-wider text-right">Hành động</th>
                             </tr>
@@ -159,11 +160,29 @@ export default function AdminPage() {
                                     </td>
                                     <td className="px-8 py-5">
                                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${p.role === 'admin' ? 'bg-red-100 text-red-600' :
-                                                p.role === 'pro' ? 'bg-purple-100 text-purple-600' :
-                                                    'bg-blue-100 text-blue-600'
+                                            p.role === 'pro' ? 'bg-purple-100 text-purple-600' :
+                                                'bg-blue-100 text-blue-600'
                                             }`}>
                                             {p.role}
                                         </span>
+                                    </td>
+                                    <td className="px-8 py-5 text-center">
+                                        {p.role !== 'admin' && (
+                                            <button
+                                                onClick={async () => {
+                                                    const newRole = p.role === 'pro' ? 'user' : 'pro';
+                                                    const res = await fetch('/api/admin/users', {
+                                                        method: 'PUT',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ id: p.id, role: newRole })
+                                                    });
+                                                    if (res.ok) loadProfiles();
+                                                }}
+                                                className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${p.role === 'pro' ? 'bg-accent' : 'bg-slate-200'}`}
+                                            >
+                                                <div className={`w-4 h-4 bg-white rounded-full transition-all duration-300 ${p.role === 'pro' ? 'translate-x-6' : 'translate-x-0'}`} />
+                                            </button>
+                                        )}
                                     </td>
                                     <td className="px-8 py-5">
                                         {p.expires_at ? (

@@ -97,27 +97,53 @@ export default function MediumTermPage() {
                     </p>
                 </div>
 
-                {/* Improved Search Bar */}
-                <div className="bg-white p-6 rounded-3xl shadow-lg border border-slate-100 mb-8 max-w-xl mx-auto">
-                    <form onSubmit={handleAnalyze} className="flex gap-3">
-                        <div className="relative flex-1">
-                            <input
-                                type="text"
-                                value={symbol}
-                                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                                placeholder="Nhập mã cổ phiếu (VD: HPG, FPT...)"
-                                className="w-full pl-5 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none font-bold text-lg uppercase placeholder:normal-case"
-                            />
+                {userRole && userRole !== 'pro' && userRole !== 'admin' ? (
+                    <div className="bg-white p-12 rounded-3xl shadow-xl border border-slate-200 text-center max-w-2xl mx-auto flex flex-col items-center gap-6">
+                        <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
+                            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m11 3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9l6 6m0-6l-6 6" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-bold text-slate-900 mb-2">Truy cập bị giới hạn</h3>
+                            <p className="text-slate-500">
+                                Tính năng <b>Xác định xu hướng</b> chỉ dành cho người dùng <b>PRO</b>.
+                                Vui lòng liên hệ quản trị viên để nâng cấp tài khoản của bạn.
+                            </p>
                         </div>
                         <button
-                            type="submit"
-                            disabled={loading || !symbol}
-                            className="px-6 py-3 bg-accent text-white rounded-2xl font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 disabled:scale-100"
+                            onClick={() => window.location.href = '/'}
+                            className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-bold hover:scale-105 transition-all"
                         >
-                            {loading ? 'Đang quét...' : 'Phân Tích'}
+                            Quay lại Trang chủ
                         </button>
-                    </form>
-                </div>
+                    </div>
+                ) : (
+                    <>
+                        {/* Improved Search Bar */}
+                        <div className="bg-white p-6 rounded-3xl shadow-lg border border-slate-100 mb-8 max-w-xl mx-auto">
+                            <form onSubmit={handleAnalyze} className="flex gap-3">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        value={symbol}
+                                        onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                                        placeholder="Nhập mã cổ phiếu (VD: HPG, FPT...)"
+                                        className="w-full pl-5 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none font-bold text-lg uppercase placeholder:normal-case"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={loading || !symbol}
+                                    className="px-6 py-3 bg-accent text-white rounded-2xl font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 disabled:scale-100"
+                                >
+                                    {loading ? 'Đang quét...' : 'Phân Tích'}
+                                </button>
+                            </form>
+                        </div>
+                    </>
+                )}
 
                 {error && (
                     <div className="max-w-xl mx-auto p-4 bg-red-50 text-red-600 rounded-2xl border border-red-100 font-medium text-center mb-8">

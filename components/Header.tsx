@@ -70,6 +70,7 @@ export default function Header({ user }: { user: any }) {
                             <NavLink href="/" label="Danh Mục" />
                             <NavLink href="/market-scan" label="Tín Hiệu Thị Trường" />
                             <NavLink href="/alerts" label="Cảnh Báo" />
+                            <NavLink href="/medium-term" label="Xác Định Xu Hướng" />
                             {role === 'admin' && (
                                 <NavLink href="/admin" label="Quản Trị" />
                             )}

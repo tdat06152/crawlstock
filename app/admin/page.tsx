@@ -158,7 +158,10 @@ export default function AdminPage() {
                                         <div className="text-[10px] text-slate-400 font-mono mt-0.5">{p.id}</div>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${p.role === 'admin' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${p.role === 'admin' ? 'bg-red-100 text-red-600' :
+                                                p.role === 'pro' ? 'bg-purple-100 text-purple-600' :
+                                                    'bg-blue-100 text-blue-600'
+                                            }`}>
                                             {p.role}
                                         </span>
                                     </td>
@@ -249,6 +252,7 @@ export default function AdminPage() {
                                         className="w-full bg-slate-100 border-none rounded-2xl px-5 py-4 text-slate-900 focus:ring-2 focus:ring-accent outline-none appearance-none"
                                     >
                                         <option value="user">User</option>
+                                        <option value="pro">Pro</option>
                                         <option value="admin">Admin</option>
                                     </select>
                                 </div>

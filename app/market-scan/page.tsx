@@ -76,6 +76,26 @@ export default function MarketScanPage() {
         }
     };
 
+    const handleScanNow = async () => {
+        if (!confirm('Bạn có chắc muốn chạy quét dữ liệu ngay bây giờ? Quá trình này có thể mất vài phút.')) return;
+        setLoading(true);
+        try {
+            const res = await fetch('/api/admin/trigger-scan', { method: 'POST' });
+            if (res.ok) {
+                alert('Đang chạy quét dữ liệu. Vui lòng đợi trong giây lát rồi tải lại trang.');
+                // Refresh after a delay? Or just let user reload.
+                setTimeout(() => window.location.reload(), 5000);
+            } else {
+                alert('Không thể chạy quét dữ liệu. Vui lòng thử lại sau.');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi kết nối.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 text-slate-800">
             <Header user={user} />
@@ -92,14 +112,22 @@ export default function MarketScanPage() {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <label className="text-sm font-semibold text-slate-600">Ngày quét:</label>
-                        <input
-                            type="date"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-accent"
-                        />
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleScanNow}
+                            className="bg-accent text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-accent/20 hover:scale-105 active:scale-95 transition-all"
+                        >
+                            🔄 Chạy Quét Ngay
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-semibold text-slate-600">Ngày quét:</label>
+                            <input
+                                type="date"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-accent"
+                            />
+                        </div>
                     </div>
                 </div>
 

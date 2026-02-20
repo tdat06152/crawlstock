@@ -61,24 +61,39 @@ export async function analyzeStockStrategyConcise(data: {
     }
 
     const prompt = `
-Phân tích nhanh mã ${data.symbol} (Giá hiện tại: ${data.close})
-Dữ liệu kỹ thuật: ${JSON.stringify(data.indicators)}
-Tin tức riêng: ${data.news.length > 0 ? data.news.slice(0, 2).join(', ') : 'Không có'}
-Bối cảnh thị trường: ${data.marketContext && data.marketContext.length > 0 ? data.marketContext.slice(0, 2).join(', ') : 'Ổn định'}
+Bạn là một chuyên gia phân tích chứng khoán am hiểu sâu sắc thị trường Việt Nam.
+Nhiệm vụ: Phân tích mã ${data.symbol} (Giá: ${data.close}) dựa trên TIN TỨC và BỐI CẢNH là ưu tiên số 1, KỸ THUẬT là xác nhận số 2.
 
-Yêu cầu: Đưa ra nhận định cực kỳ ngắn gọn (tối đa 3-4 câu) về:
-1. Tín hiệu chủ đạo (RSI/EMA/BB).
-2. Hành động khuyến nghị (Mua/Bán/Đợi).
-3. Vùng Target/Stoploss dự kiến.
-Trả lời bằng tiếng Việt, súc tích, chuyên nghiệp.
+DỮ LIỆU ĐẦU VÀO:
+1. Tin tức doanh nghiệp: ${data.news.length > 0 ? data.news.join(' | ') : 'Không có tin mới quan trọng.'}
+2. Bối cảnh thị trường chung: ${data.marketContext && data.marketContext.length > 0 ? data.marketContext.join(' | ') : 'Ổn định/Chưa có tin hot.'}
+3. Dữ liệu kỹ thuật (3 mẫu hình): ${JSON.stringify(data.indicators)}
+
+YÊU CẦU TRẢ LỜI (Cực kỳ ngắn gọn, max 4 câu):
+1. [TIN TỨC]: Nhận định sự kiện/tin tức đang tác động trực tiếp thế nào đến mã này (Nếu không có tin, nêu bối cảnh ngành/thị trường).
+2. [HÀNH ĐỘNG]: Khuyến nghị hành động (Mua/Bán/Đợi) dựa trên việc tin tức có ủng hộ tín hiệu kỹ thuật từ 3 mẫu hình hay không.
+3. [MỤC TIÊU]: Vùng Target/Stoploss dự kiến.
+
+Ngôn ngữ: Tiếng Việt, chuyên nghiệp, sắc sảo.
 `.trim();
 
     try {
+        // Debug: Log news count to ensure data is flowing
+        console.log(`[AI Analysis] Processing ${data.symbol} with ${data.news.length} news items.`);
+
         const result = await geminiModel.generateContent(prompt);
         const response = await result.response;
-        return response.text();
+        let text = response.text();
+
+        // Thêm hậu tố kiểm chứng dữ liệu nếu news trống để user biết
+        if (data.news.length === 0) {
+            text += '\n\n<i>(Lưu ý: Không tìm thấy tin tức mới cụ thể cho mã này, phân tích dựa trên bối cảnh chung)</i>';
+        }
+
+        return text;
     } catch (error) {
         console.error('Gemini Concise Analysis Error:', error);
         return 'Không thể thực hiện phân tích AI lúc này.';
     }
+
 }

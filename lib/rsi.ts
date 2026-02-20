@@ -6,6 +6,7 @@
 
 export interface OHLC {
     t: number; // timestamp in seconds
+    o: number; // open
     c: number; // close price
     h: number; // high
     l: number; // low

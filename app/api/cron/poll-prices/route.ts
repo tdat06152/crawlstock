@@ -156,16 +156,17 @@ Chi tiết: <i>${reason}</i>
                             const bb = analyzeBBBreakout(highs, lows, closes, volumes);
 
                             // Logic: 3 mẫu hình cùng chiều (BUY hoặc SELL)
-                            const isRsiBuy = rsi.state === 'OVERSOLD' || rsi.near_flag === 'NEAR_OVERSOLD' || ((rsi.value || 0) < 40 && (rsi.slope_5 || 0) > 0);
+                            const isRsiBuy = (rsi.value || 0) > 60 || (rsi.value || 0) < 35; // Momentum hoặc Quá bán (Hồi phục)
                             const isEmaBuy = emaMacd.state === 'EMA200_MACD_BUY';
                             const isBbBuy = bb.state === 'BB_BREAKOUT_BUY';
 
-                            const isRsiSell = rsi.state === 'OVERBOUGHT' || rsi.near_flag === 'NEAR_OVERBOUGHT';
+                            const isRsiSell = (rsi.value || 0) < 40 || (rsi.value || 0) > 65; // Yếu hoặc Quá mua
                             const isEmaSell = emaMacd.state === 'EMA200_MACD_SELL';
                             const isBbSell = bb.state === 'BB_BREAKOUT_EXIT';
 
                             const isPotentialBuy = isRsiBuy && isEmaBuy && isBbBuy;
                             const isPotentialSell = isRsiSell && isEmaSell && isBbSell;
+
 
                             if (isPotentialBuy || isPotentialSell) {
                                 console.log(`Potential Signal detected for ${watchlist.symbol}! Running AI...`);

@@ -112,39 +112,13 @@ export async function GET(req: NextRequest) {
                         is_sent: false
                     });
                     seenAlerts.add(key);
-
-                    // AI Analysis & Telegram (New)
-                    try {
-                        const news = await getSymbolNews(symbol);
-                        const aiAnalysis = await analyzeStockStrategyConcise({
-                            symbol,
-                            close: marketData.close,
-                            indicators: {
-                                rsi: { value: rsi, state: rsiState }
-                            },
-                            news,
-                            marketContext
-                        });
-
-                        const typeEmoji = rsiState === 'OVERSOLD' ? '🟢 THEO DÕI MUA' : '🔴 THEO DÕI BÁN';
-                        const telegramMsg = `
-<b>[DANH MỤC] ${symbol}</b> - ${typeEmoji}
-Chiến lược: RSI Quá ${rsiState === 'OVERSOLD' ? 'bán' : 'mua'}
-Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
-
-<b>Phân tích AI:</b>
-<i>${aiAnalysis}</i>
-`.trim();
-                        await sendTelegramMessage(telegramMsg);
-                    } catch (aiErr) {
-                        console.error(`AI Analysis failed for ${symbol}:`, aiErr);
-                    }
                 }
             }
 
             // --- STRATEGY 2: EMA200 + MACD ---
+            let emaState = null;
             if (userSetting.enable_ema200_macd !== false) {
-                const emaState = marketData.ema200_macd_state;
+                emaState = marketData.ema200_macd_state;
                 if (emaState === 'EMA200_MACD_BUY' || emaState === 'EMA200_MACD_SELL') {
                     const signalType = emaState === 'EMA200_MACD_BUY' ? 'BUY' : 'SELL';
                     const key = `${userId}-${symbol}-${marketData.scan_date}-EMA200_MACD-${signalType}`;
@@ -174,51 +148,25 @@ Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
                             is_sent: false
                         });
                         seenAlerts.add(key);
-
-                        // AI Analysis & Telegram (New)
-                        try {
-                            const news = await getSymbolNews(symbol);
-                            const aiAnalysis = await analyzeStockStrategyConcise({
-                                symbol,
-                                close: marketData.close,
-                                indicators: {
-                                    ema_macd: { state: emaState, macd_hist: marketData.macd_hist }
-                                },
-                                news,
-                                marketContext
-                            });
-
-                            const typeEmoji = signalType === 'BUY' ? '🟢 MUA' : '🔴 BÁN';
-                            const telegramMsg = `
-<b>[DANH MỤC] ${symbol}</b> - ${typeEmoji}
-Chiến lược: EMA200 + MACD
-Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
-
-<b>Phân tích AI:</b>
-<i>${aiAnalysis}</i>
-`.trim();
-                            await sendTelegramMessage(telegramMsg);
-                        } catch (aiErr) {
-                            console.error(`AI Analysis failed for ${symbol}:`, aiErr);
-                        }
                     }
                 }
             }
 
             // --- STRATEGY 3: BOLLINGER BREAKOUT ---
+            let bb_state = null;
             if (userSetting.enable_bb_breakout !== false) {
-                const bbState = marketData.bb_state;
-                if (bbState && bbState !== 'BB_NEUTRAL') {
+                bb_state = marketData.bb_state;
+                if (bb_state && bb_state !== 'BB_NEUTRAL') {
                     let signalType: 'BUY' | 'EXIT' | 'INFO' = 'INFO';
                     let signalTypeLabel = 'INFO'; // used for key
 
-                    if (bbState === 'BB_BREAKOUT_BUY') {
+                    if (bb_state === 'BB_BREAKOUT_BUY') {
                         signalType = 'BUY';
                         signalTypeLabel = 'BUY';
-                    } else if (bbState === 'BB_BREAKOUT_EXIT') {
+                    } else if (bb_state === 'BB_BREAKOUT_EXIT') {
                         signalType = 'EXIT'; // mapped to 'EXIT' in DB or just use state
                         signalTypeLabel = 'EXIT';
-                    } else if (bbState === 'BB_BREAKOUT_WEAK') {
+                    } else if (bb_state === 'BB_BREAKOUT_WEAK') {
                         signalType = 'INFO';
                         signalTypeLabel = 'WEAK';
                     }
@@ -227,11 +175,11 @@ Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
 
                     if (!seenAlerts.has(key)) {
                         let msg = '';
-                        if (bbState === 'BB_BREAKOUT_BUY') {
+                        if (bb_state === 'BB_BREAKOUT_BUY') {
                             msg = `Bùng nổ BB: Close > Upper Band. VolRatio: ${marketData.vol_ratio}x, ADX: ${marketData.adx14}.`;
-                        } else if (bbState === 'BB_BREAKOUT_EXIT') {
+                        } else if (bb_state === 'BB_BREAKOUT_EXIT') {
                             msg = `Cảnh báo thoát: Giá đóng cửa dưới đường Middle BB (SMA20).`;
-                        } else if (bbState === 'BB_BREAKOUT_WEAK') {
+                        } else if (bb_state === 'BB_BREAKOUT_WEAK') {
                             msg = `Breakout yếu: Giá vượt biên trên nhưng thiếu Volume (${marketData.vol_ratio}x) hoặc lực Trend (ADX: ${marketData.adx14}).`;
                         }
 
@@ -246,41 +194,67 @@ Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
                             bb_lower: marketData.bb_lower,
                             adx14: marketData.adx14,
                             vol_ratio: marketData.vol_ratio,
-                            state: bbState,
+                            state: bb_state,
                             message: msg,
                             is_sent: false
                         });
                         seenAlerts.add(key);
-
-                        // AI Analysis & Telegram (New)
-                        try {
-                            const news = await getSymbolNews(symbol);
-                            const aiAnalysis = await analyzeStockStrategyConcise({
-                                symbol,
-                                close: marketData.close,
-                                indicators: {
-                                    bb: { state: bbState, vol_ratio: marketData.vol_ratio }
-                                },
-                                news,
-                                marketContext
-                            });
-
-                            const typeEmoji = signalType === 'BUY' ? '🟢 MUA (Breakout)' : (signalType === 'EXIT' ? '🔴 THOÁT' : 'ℹ️ CHÚ Ý');
-                            const telegramMsg = `
-<b>[DANH MỤC] ${symbol}</b> - ${typeEmoji}
-Chiến lược: Bollinger Breakout
-Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
-
-<b>Phân tích AI:</b>
-<i>${aiAnalysis}</i>
-`.trim();
-                            await sendTelegramMessage(telegramMsg);
-                        } catch (aiErr) {
-                            console.error(`AI Analysis failed for ${symbol}:`, aiErr);
-                        }
                     }
                 }
             }
+
+            // --- CONFLUENCE CHECK & TELEGRAM ---
+            // Only send recommendation if all 3 indicators align
+            const isPotentialBuy =
+                emaState === 'EMA200_MACD_BUY' &&
+                bb_state === 'BB_BREAKOUT_BUY' &&
+                (marketData.rsi > 60 || marketData.rsi < 35); // RSI strong momentum or reversal
+
+            const isPotentialSell =
+                emaState === 'EMA200_MACD_SELL' &&
+                bb_state === 'BB_BREAKOUT_EXIT' &&
+                (marketData.rsi < 40 || marketData.rsi > 65);
+
+            if (isPotentialBuy || isPotentialSell) {
+                const signalType = isPotentialBuy ? 'BUY' : 'SELL';
+                const key = `${userId}-${symbol}-${marketData.scan_date}-CONFLUENCE-${signalType}`;
+
+                if (!seenAlerts.has(key)) {
+                    try {
+                        const news = await getSymbolNews(symbol);
+                        const aiAnalysis = await analyzeStockStrategyConcise({
+                            symbol,
+                            close: marketData.close,
+                            indicators: {
+                                rsi: { value: marketData.rsi, state: marketData.state },
+                                ema_macd: { state: emaState, macd_hist: marketData.macd_hist },
+                                bb: { state: bb_state, vol_ratio: marketData.vol_ratio }
+                            },
+                            news,
+                            marketContext
+                        });
+
+                        const typeEmoji = isPotentialBuy ? '🟢 KHUYẾN NGHỊ MUA MẠNH' : '🔴 KHUYẾN NGHỊ BÁN MẠNH';
+                        const telegramMsg = `
+<b>[KHUYẾN NGHỊ] ${symbol}</b> - ${typeEmoji}
+<i>Tín hiệu xác nhận đồng nhất từ 3 mẫu hình kỹ thuật</i>
+
+Giá hiện tại: ${marketData.close.toLocaleString('vi-VN')}
+- RSI: ${marketData.rsi} (${marketData.state})
+- EMA/MACD: ${emaState}
+- BB: ${bb_state} (Vol: ${marketData.vol_ratio}x)
+
+<b>🤖 Phân tích AI:</b>
+<i>${aiAnalysis}</i>
+`.trim();
+                        await sendTelegramMessage(telegramMsg);
+                        seenAlerts.add(key); // Mark as sent to avoid double messages in one run
+                    } catch (aiErr) {
+                        console.error(`AI Analysis failed for confluence ${symbol}:`, aiErr);
+                    }
+                }
+            }
+
         }
 
         if (alertsToInsert.length > 0) {

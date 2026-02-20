@@ -66,7 +66,17 @@ export async function writeScanSnapshot(snapshot: SheetSnapshot) {
     return data;
 }
 
+// Simple in-memory cache to avoid repeated slow Sheets calls
+const snapshotCache: Record<string, { data: any[], timestamp: number }> = {};
+const CACHE_TTL = 3600 * 1000; // 1 hour
+
 export async function getScanSnapshot(date: string) {
+    const now = Date.now();
+    if (snapshotCache[date] && (now - snapshotCache[date].timestamp < CACHE_TTL)) {
+        console.log(`[Sheets] Returning cached snapshot for ${date}`);
+        return snapshotCache[date].data;
+    }
+
     const url = process.env.GOOGLE_SHEETS_SCRIPT_URL;
     const key = process.env.GOOGLE_SHEETS_API_KEY;
 
@@ -77,14 +87,16 @@ export async function getScanSnapshot(date: string) {
     targetUrl.searchParams.append('date', date);
     targetUrl.searchParams.append('key', key);
 
-    // Note: Apps Script Web App redirects (302) to googleusercontent.
-    // fetch follows redirects by default.
-
     const res = await fetch(targetUrl.toString());
     if (!res.ok) throw new Error(`Sheets API read error: ${res.status}`);
 
     const data = await res.json();
-    return data.items || [];
+    const items = data.items || [];
+
+    // Cache result
+    snapshotCache[date] = { data: items, timestamp: now };
+
+    return items;
 }
 
 export async function cleanupOldSnapshots() {

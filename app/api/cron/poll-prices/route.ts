@@ -60,47 +60,38 @@ export async function GET(request: NextRequest) {
         const prices = await vnMarket.getLatestPrices(uniqueSymbols);
         console.log(`Fetched ${prices.length} prices`);
 
-        // 4. Upsert prices into latest_prices table
-        const updateResults = [];
-        for (const priceData of prices) {
-            const { error: upsertError } = await supabase
-                .from('latest_prices')
-                .upsert({
-                    symbol: priceData.symbol,
-                    price: priceData.price,
-                    ts: priceData.timestamp,
+        // 4. Batch upsert prices into latest_prices table
+        const { error: upsertPricesError } = await supabase
+            .from('latest_prices')
+            .upsert(
+                prices.map(p => ({
+                    symbol: p.symbol,
+                    price: p.price,
+                    ts: p.timestamp,
                     updated_at: new Date().toISOString()
-                }, {
-                    onConflict: 'symbol'
-                });
+                })),
+                { onConflict: 'symbol' }
+            );
 
-            if (upsertError) {
-                console.error(`Error upserting price for ${priceData.symbol}:`, upsertError);
-                updateResults.push({ symbol: priceData.symbol, status: 'error', error: upsertError });
-            } else {
-                updateResults.push({ symbol: priceData.symbol, status: 'success', price: priceData.price });
-            }
+        if (upsertPricesError) {
+            console.error('Error batch upserting prices:', upsertPricesError);
         }
 
-        // 5. Process alerts for each watchlist
-        let alertsCreated = 0;
+        // 5. Process alerts for each watchlist in parallel
         const priceMap = new Map(prices.map(p => [p.symbol, p]));
+        const watchlistStates = await supabase.from('watchlist_state').select('*');
+        const stateMap = new Map(watchlistStates.data?.map(s => [s.watchlist_id, s]) || []);
 
-        for (const watchlist of (watchlists || []) as Watchlist[]) {
+        const processPromises = (watchlists || [] as Watchlist[]).map(async (watchlist) => {
             const priceData = priceMap.get(watchlist.symbol);
-            if (!priceData) continue;
+            if (!priceData) return null;
 
-            // Get current state
-            const { data: stateData } = await supabase
-                .from('watchlist_state')
-                .select('*')
-                .eq('watchlist_id', watchlist.id)
-                .single();
-
-            const state = stateData as WatchlistState | null;
+            const state = stateMap.get(watchlist.id) as WatchlistState | null;
 
             // Check if alert should be triggered
             const triggerThisTime = shouldTriggerAlert(priceData.price, watchlist, state);
+            let alertCreated = false;
+
             if (triggerThisTime) {
                 // Check cooldown
                 if (!isCooldownExpired(state?.last_alert_at || null, watchlist.cooldown_minutes)) {
@@ -127,62 +118,61 @@ export async function GET(request: NextRequest) {
                     if (alertError) {
                         console.error(`Error creating alert for ${watchlist.symbol}:`, alertError);
                     } else {
-                        alertsCreated++;
+                        alertCreated = true;
                         console.log(`Price Alert created for ${watchlist.symbol} at ${priceData.price}`);
 
-                        // 1. Send Simple Price Alert (No AI)
-                        const simpleMsg = `
+                        // Run non-blocking Telegram alerts
+                        (async () => {
+                            // 1. Send Simple Price Alert
+                            const simpleMsg = `
 <b>🔔 CẢNH BÁO GIÁ: ${watchlist.symbol}</b>
 Trạng thái: <b>Vào vùng mua (Inzone)</b>
 Giá hiện tại: <b>${priceData.price.toLocaleString('vi-VN')}</b>
 Chi tiết: <i>${reason}</i>
 
 🕒 ${new Date().toLocaleString('vi-VN')}
-                        `.trim();
-                        await sendTelegramMessage(simpleMsg);
+                            `.trim();
+                            await sendTelegramMessage(simpleMsg);
 
-                        // 2. Check for Potential Signal (3 Patterns Aligned)
-                        try {
-                            // Fetch history for indicators
-                            const { getSymbolHistory } = await import('@/lib/market-data');
-                            const history = await getSymbolHistory(watchlist.symbol, 100);
-                            const closes = history.map(h => h.c);
-                            const highs = history.map(h => h.h);
-                            const lows = history.map(h => h.l);
-                            const volumes = history.map(h => h.v);
+                            // 2. Check and send AI Signal
+                            try {
+                                const { getSymbolHistory } = await import('@/lib/market-data');
+                                const history = await getSymbolHistory(watchlist.symbol, 100);
+                                if (history.length >= 20) {
+                                    const closes = history.map(h => h.c);
+                                    const highs = history.map(h => h.h);
+                                    const lows = history.map(h => h.l);
+                                    const volumes = history.map(h => h.v);
 
-                            const rsi = analyzeRSI(calculateRSIArray(closes));
-                            const emaMacd = analyzeEMAMACD(closes);
-                            const bb = analyzeBBBreakout(highs, lows, closes, volumes);
+                                    const rsi = analyzeRSI(calculateRSIArray(closes));
+                                    const emaMacd = analyzeEMAMACD(closes);
+                                    const bb = analyzeBBBreakout(highs, lows, closes, volumes);
 
-                            // Logic: 3 mẫu hình cùng chiều (BUY hoặc SELL)
-                            const isRsiBuy = (rsi.value || 0) > 60 || (rsi.value || 0) < 35; // Momentum hoặc Quá bán (Hồi phục)
-                            const isEmaBuy = emaMacd.state === 'EMA200_MACD_BUY';
-                            const isBbBuy = bb.state === 'BB_BREAKOUT_BUY';
+                                    const isRsiBuy = (rsi.value || 0) > 60 || (rsi.value || 0) < 35;
+                                    const isEmaBuy = emaMacd.state === 'EMA200_MACD_BUY';
+                                    const isBbBuy = bb.state === 'BB_BREAKOUT_BUY';
 
-                            const isRsiSell = (rsi.value || 0) < 40 || (rsi.value || 0) > 65; // Yếu hoặc Quá mua
-                            const isEmaSell = emaMacd.state === 'EMA200_MACD_SELL';
-                            const isBbSell = bb.state === 'BB_BREAKOUT_EXIT';
+                                    const isRsiSell = (rsi.value || 0) < 40 || (rsi.value || 0) > 65;
+                                    const isEmaSell = emaMacd.state === 'EMA200_MACD_SELL';
+                                    const isBbSell = bb.state === 'BB_BREAKOUT_EXIT';
 
-                            const isPotentialBuy = isRsiBuy && isEmaBuy && isBbBuy;
-                            const isPotentialSell = isRsiSell && isEmaSell && isBbSell;
+                                    const isPotentialBuy = isRsiBuy && isEmaBuy && isBbBuy;
+                                    const isPotentialSell = isRsiSell && isEmaSell && isBbSell;
 
+                                    if (isPotentialBuy || isPotentialSell) {
+                                        const news = await getSymbolNews(watchlist.symbol);
+                                        const aiAnalysis = await analyzeStockStrategyConcise({
+                                            symbol: watchlist.symbol,
+                                            close: priceData.price,
+                                            indicators: {
+                                                rsi: { value: rsi.value, state: rsi.state },
+                                                ema_macd: { state: emaMacd.state },
+                                                bb: { state: bb.state }
+                                            },
+                                            news
+                                        });
 
-                            if (isPotentialBuy || isPotentialSell) {
-                                console.log(`Potential Signal detected for ${watchlist.symbol}! Running AI...`);
-                                const news = await getSymbolNews(watchlist.symbol);
-                                const aiAnalysis = await analyzeStockStrategyConcise({
-                                    symbol: watchlist.symbol,
-                                    close: priceData.price,
-                                    indicators: {
-                                        rsi: { value: rsi.value, state: rsi.state },
-                                        ema_macd: { state: emaMacd.state },
-                                        bb: { state: bb.state }
-                                    },
-                                    news
-                                });
-
-                                const signalMsg = `
+                                        const signalMsg = `
 <b>🚀 TÍN HIỆU TIỀM NĂNG: ${watchlist.symbol}</b>
 Mô tả: <b>3 mẫu hình kỹ thuật cùng xác nhận chiều ${isPotentialBuy ? 'MUA' : 'BÁN'}</b>
 
@@ -190,35 +180,45 @@ Mô tả: <b>3 mẫu hình kỹ thuật cùng xác nhận chiều ${isPotentialB
 ${aiAnalysis}
 
 🕒 ${new Date().toLocaleString('vi-VN')}
-                                `.trim();
-                                await sendTelegramMessage(signalMsg);
+                                        `.trim();
+                                        await sendTelegramMessage(signalMsg);
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('AI Signal alert failed:', e);
                             }
-                        } catch (sigErr) {
-                            console.warn('Potential signal check failed:', sigErr);
-                        }
+                        })();
                     }
                 }
             }
 
-            // Update state
+            // Prepare state update
             const currentlyInZone = isInZone(priceData.price, watchlist.buy_min, watchlist.buy_max);
-            const { error: stateError } = await supabase
-                .from('watchlist_state')
-                .upsert({
-                    watchlist_id: watchlist.id,
-                    last_in_zone: currentlyInZone,
-                    last_price: priceData.price,
-                    last_ts: priceData.timestamp,
-                    last_alert_at: triggerThisTime
-                        ? new Date().toISOString()
-                        : state?.last_alert_at || null
-                }, {
-                    onConflict: 'watchlist_id'
-                });
+            return {
+                watchlist_id: watchlist.id,
+                last_in_zone: currentlyInZone,
+                last_price: priceData.price,
+                last_ts: priceData.timestamp,
+                last_alert_at: triggerThisTime
+                    ? new Date().toISOString()
+                    : state?.last_alert_at || null,
+                alertCreated: alertCreated
+            };
+        });
 
-            if (stateError) {
-                console.error(`Error updating state for ${watchlist.symbol}:`, stateError);
-            }
+        const updatedStates = await Promise.all(processPromises);
+        const validStates = updatedStates.filter(s => s !== null);
+        const alertsCreated = validStates.filter(s => s?.alertCreated).length;
+
+        // 6. Batch update states
+        if (validStates.length > 0) {
+            const { error: stateUpdateError } = await supabase
+                .from('watchlist_state')
+                .upsert(
+                    validStates.map(({ alertCreated, ...rest }) => rest),
+                    { onConflict: 'watchlist_id' }
+                );
+            if (stateUpdateError) console.error('Error updating states:', stateUpdateError);
         }
 
         return NextResponse.json({
@@ -226,7 +226,6 @@ ${aiAnalysis}
             source: 'DNSE/Entrade Real-time',
             symbols_processed: prices.length,
             watchlists_checked: watchlists?.length || 0,
-            updates: updateResults,
             alerts_created: alertsCreated
         });
 

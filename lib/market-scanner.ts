@@ -145,43 +145,44 @@ export async function runMarketScan() {
         // 4. Maintenance
         await cleanupOldSnapshots().catch((e: any) => console.error('Cleanup failed', e));
 
-        // 5. Market Signal Alerts (New)
+        // 5. Market Signal Alerts (Optimized: Parallel AI processing)
         try {
             const marketContext = await getMarketNews();
 
             const buySignals = results.filter(r =>
                 r.ema200_macd_state === 'EMA200_MACD_BUY' &&
                 r.bb_state === 'BB_BREAKOUT_BUY' &&
-                (r.rsi || 0) > 60 // RSI > 60 xác nhận xung lực mạnh, gần vùng 70
+                (r.rsi || 0) > 60
             );
 
             const sellSignals = results.filter(r =>
                 r.ema200_macd_state === 'EMA200_MACD_SELL' &&
                 r.bb_state === 'BB_BREAKOUT_EXIT' &&
-                (r.rsi || 0) < 40 // RSI < 40 xác nhận xu hướng giảm mạnh, gần vùng 30
+                (r.rsi || 0) < 40
             );
 
             const allSignals = [...buySignals, ...sellSignals];
 
             if (allSignals.length > 0) {
-                console.log(`[Market Scan] Found ${allSignals.length} market signals. Sending alerts...`);
+                console.log(`[Market Scan] Found ${allSignals.length} market signals. Sending alerts in parallel...`);
 
-                for (const signal of allSignals) {
-                    const news = await getSymbolNews(signal.symbol);
-                    const aiAnalysis = await analyzeStockStrategyConcise({
-                        symbol: signal.symbol,
-                        close: signal.close,
-                        indicators: {
-                            rsi: { value: signal.rsi, state: signal.state },
-                            ema_macd: { state: signal.ema200_macd_state, macd_hist: signal.macd_hist },
-                            bb: { state: signal.bb_state, vol_ratio: signal.vol_ratio }
-                        },
-                        news: news,
-                        marketContext: marketContext
-                    });
+                await Promise.all(allSignals.map(async (signal) => {
+                    try {
+                        const news = await getSymbolNews(signal.symbol);
+                        const aiAnalysis = await analyzeStockStrategyConcise({
+                            symbol: signal.symbol,
+                            close: signal.close,
+                            indicators: {
+                                rsi: { value: signal.rsi, state: signal.state },
+                                ema_macd: { state: signal.ema200_macd_state, macd_hist: signal.macd_hist },
+                                bb: { state: signal.bb_state, vol_ratio: signal.vol_ratio }
+                            },
+                            news,
+                            marketContext: marketContext
+                        });
 
-                    const type = buySignals.includes(signal) ? '🟢 MUA MẠNH' : '🔴 BÁN MẠNH';
-                    const message = `
+                        const type = buySignals.includes(signal) ? '🟢 MUA MẠNH' : '🔴 BÁN MẠNH';
+                        const message = `
 <b>[TÍN HIỆU THỊ TRƯỜNG]</b>
 Mã: <b>${signal.symbol}</b> - ${type}
 Giá: ${signal.close.toLocaleString('vi-VN')}
@@ -195,8 +196,11 @@ Giá: ${signal.close.toLocaleString('vi-VN')}
 <i>${aiAnalysis}</i>
 `.trim();
 
-                    await sendTelegramMessage(message);
-                }
+                        await sendTelegramMessage(message);
+                    } catch (e) {
+                        console.error(`Alert failed for ${signal.symbol}`, e);
+                    }
+                }));
             }
         } catch (alertErr) {
             console.error('[Market Scan] Alert processing failed:', alertErr);

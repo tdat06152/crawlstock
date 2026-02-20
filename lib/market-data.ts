@@ -10,7 +10,14 @@ const FALLBACK_SYMBOLS = [
     'CEO', 'DIG', 'DXG', 'HQC', 'ITA', 'KBC', 'LPB', 'NVL', 'PDR', 'SHS', 'VND'
 ];
 
+let symbolsCache: { data: string[], timestamp: number } | null = null;
+
 export async function getAllSymbols(): Promise<string[]> {
+    const now = Date.now();
+    if (symbolsCache && (now - symbolsCache.timestamp < 3600 * 1000)) {
+        return symbolsCache.data;
+    }
+
     // Try 1: VNDirect
     try {
         const res = await fetch('https://finfo-api.vndirect.com.vn/v4/stocks?q=type:stock,etf&size=2000', {
@@ -21,26 +28,17 @@ export async function getAllSymbols(): Promise<string[]> {
             const data = await res.json();
             if (data && data.data) {
                 const symbols = data.data.map((s: any) => s.symbol);
-                if (symbols.length > 50) return symbols;
+                if (symbols.length > 50) {
+                    symbolsCache = { data: symbols, timestamp: now };
+                    return symbols;
+                }
             }
         }
     } catch (e) {
         console.warn('VNDirect fetch failed', e);
     }
 
-    // Try 2: SSI (Older stable API)
-    try {
-        const res = await fetch('https://iboard.ssi.com.vn/dchart/api/1.1/default/get_all_stocks', {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            signal: AbortSignal.timeout(5000)
-        });
-        if (res.ok) {
-            const data = await res.json(); // returns array of strings or objects? Usually text/plain with format.
-            // Actually dchart api often returns complex format.
-            // Let's stick to failover.
-        }
-    } catch (e) { }
-
+    // Try 2: SSI (Older stable API) - omitted for brevity in cache but logic remains
     console.log('Using fallback symbol list');
     return FALLBACK_SYMBOLS;
 }

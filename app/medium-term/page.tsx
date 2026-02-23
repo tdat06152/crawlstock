@@ -56,8 +56,8 @@ export default function MediumTermPage() {
         if (e) e.preventDefault();
         if (!symbol) return;
 
-        if (userRole !== 'pro' && userRole !== 'admin') {
-            setError('Tính năng này chỉ dành cho tài khoản PRO. Vui lòng liên hệ Admin để nâng cấp.');
+        if (userRole !== 'pro' && userRole !== 'admin' && userRole !== 'member') {
+            setError('Tính năng này chỉ dành cho tài khoản PRO trở lên. Vui lòng liên hệ Admin để nâng cấp.');
             return;
         }
 
@@ -97,7 +97,7 @@ export default function MediumTermPage() {
                     </p>
                 </div>
 
-                {userRole && userRole !== 'pro' && userRole !== 'admin' ? (
+                {userRole && userRole !== 'pro' && userRole !== 'admin' && userRole !== 'member' ? (
                     <div className="bg-white p-12 rounded-3xl shadow-xl border border-slate-200 text-center max-w-2xl mx-auto flex flex-col items-center gap-6">
                         <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
                             <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -108,7 +108,7 @@ export default function MediumTermPage() {
                         <div>
                             <h3 className="text-2xl font-bold text-slate-900 mb-2">Truy cập bị giới hạn</h3>
                             <p className="text-slate-500">
-                                Tính năng <b>Xác định xu hướng</b> chỉ dành cho người dùng <b>PRO</b>.
+                                Tính năng <b>Xác định xu hướng</b> chỉ dành cho người dùng <b>PRO/MEMBER</b> trở lên.
                                 Vui lòng liên hệ quản trị viên để nâng cấp tài khoản của bạn.
                             </p>
                         </div>

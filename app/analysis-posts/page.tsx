@@ -9,6 +9,7 @@ export default function AnalysisPostsPage() {
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<any>(null);
+    const [role, setRole] = useState<string>('user');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [form, setForm] = useState({
@@ -28,6 +29,10 @@ export default function AnalysisPostsPage() {
     const checkAuth = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
+        if (user) {
+            const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+            if (data) setRole(data.role);
+        }
     };
 
     const loadPosts = async () => {
@@ -79,7 +84,7 @@ export default function AnalysisPostsPage() {
                     <p className="text-slate-500 font-medium">Báo cáo & góc nhìn chuyên sâu về các mã cổ phiếu</p>
                 </div>
 
-                {user && (
+                {(user && (role === 'admin' || role === 'member')) && (
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-10">
                         <h3 className="text-lg font-bold mb-4">Tạo Bài Phân Tích Mới</h3>
                         <form onSubmit={handleSubmit} className="space-y-4">

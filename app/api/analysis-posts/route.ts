@@ -26,6 +26,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check role
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'member')) {
+        return NextResponse.json({ error: 'Forbidden. Only Admins and Members can post.' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { symbol, title, content, image_url } = body;
 

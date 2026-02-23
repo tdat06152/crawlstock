@@ -115,13 +115,38 @@ export async function getSymbolNews(symbol: string): Promise<string[]> {
         return [];
     };
 
-    // Chạy song song cả hai nguồn để tiết kiệm thời gian
-    const [vnDirectNews, fireAntNews] = await Promise.all([
+    const fetchAnalysisPosts = async () => {
+        try {
+            const supabase = createServiceClient();
+            const fourteenDaysAgo = new Date();
+            fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+            const { data, error } = await supabase
+                .from('analysis_posts')
+                .select('title, created_at')
+                .eq('symbol', symbol)
+                .gte('created_at', fourteenDaysAgo.toISOString())
+                .order('created_at', { ascending: false })
+                .limit(2);
+
+            if (data && !error) {
+                return data.map((item: any) => `[StockMonitor Analysis] ${item.title} (${new Date(item.created_at).toLocaleDateString('vi-VN')})`);
+            }
+        } catch (e) {
+            console.warn(`Analysis posts fetch failed for ${symbol}`, e);
+        }
+        return [];
+    };
+
+    // Chạy song song cả ba nguồn để tiết kiệm thời gian
+    const [vnDirectNews, fireAntNews, analysisPosts] = await Promise.all([
         fetchVNDirect(),
-        fetchFireAnt()
+        fetchFireAnt(),
+        fetchAnalysisPosts()
     ]);
 
-    const news = [...vnDirectNews, ...fireAntNews];
+    // Ưu tiên Bài phân tích nội bộ lên trước
+    const news = [...analysisPosts, ...vnDirectNews, ...fireAntNews];
     return [...new Set(news)].slice(0, 5);
 }
 

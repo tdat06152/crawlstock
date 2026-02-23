@@ -69,7 +69,6 @@ export default function Header({ user }: { user: any }) {
                         <nav className="hidden md:flex items-center gap-1">
                             <NavLink href="/" label="Danh Mục" />
                             <NavLink href="/market-scan" label="Tín Hiệu Thị Trường" />
-                            <NavLink href="/alerts" label="Cảnh Báo" />
                             <NavLink href="/analysis-posts" label="Bài Phân Tích" />
                             {(role === 'pro' || role === 'admin') && (
                                 <NavLink href="/medium-term" label="Xác Định Xu Hướng" />

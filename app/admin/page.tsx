@@ -160,8 +160,9 @@ export default function AdminPage() {
                                     </td>
                                     <td className="px-8 py-5">
                                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${p.role === 'admin' ? 'bg-red-100 text-red-600' :
-                                            p.role === 'pro' ? 'bg-purple-100 text-purple-600' :
-                                                'bg-blue-100 text-blue-600'
+                                                p.role === 'pro' ? 'bg-purple-100 text-purple-600' :
+                                                    p.role === 'member' ? 'bg-amber-100 text-amber-600' :
+                                                        'bg-blue-100 text-blue-600'
                                             }`}>
                                             {p.role}
                                         </span>
@@ -272,6 +273,7 @@ export default function AdminPage() {
                                     >
                                         <option value="user">User</option>
                                         <option value="pro">Pro</option>
+                                        <option value="member">Member</option>
                                         <option value="admin">Admin</option>
                                     </select>
                                 </div>

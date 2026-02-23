@@ -81,43 +81,47 @@ export async function getSymbolHistory(symbol: string, days: number = 200): Prom
 }
 
 export async function getSymbolNews(symbol: string): Promise<string[]> {
-    const news: string[] = [];
-
-    // Nguồn 1: VNDirect
-    try {
-        const url = `https://finfo-api.vndirect.com.vn/v4/news?q=codeList:${symbol}&size=5`;
-        const res = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            next: { revalidate: 1800 } // 30 mins
-        });
-        if (res.ok) {
-            const data = await res.json();
-            if (data?.data) {
-                const items = data.data.map((item: any) => `${item.title} (${new Date(item.newsDate).toLocaleDateString('vi-VN')})`);
-                news.push(...items);
-            }
-        }
-    } catch (e) {
-        console.warn(`VNDirect news failed for ${symbol}`, e);
-    }
-
-    // Nguồn 2: CafeF (Qua API công khai nếu có hoặc RSS - giả lập logic fetch từ search/feeds)
-    // Thực tế nhiều bên dùng FireAnt hoặc CafeF RSS.
-    if (news.length < 3) {
+    const fetchVNDirect = async () => {
         try {
-            // Giả lập hoặc gọi nguồn tin tức tổng hợp từ một API ổn định hơn
+            const url = `https://finfo-api.vndirect.com.vn/v4/news?q=codeList:${symbol}&size=5`;
+            const res = await fetch(url, {
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+                next: { revalidate: 1800 } // 30 mins
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data?.data) {
+                    return data.data.map((item: any) => `${item.title} (${new Date(item.newsDate).toLocaleDateString('vi-VN')})`);
+                }
+            }
+        } catch (e) {
+            console.warn(`VNDirect news failed for ${symbol}`, e);
+        }
+        return [];
+    };
+
+    const fetchFireAnt = async () => {
+        try {
             const res = await fetch(`https://fireant.vn/api/content/news/symbol?symbol=${symbol}&size=3`, {
                 headers: { 'User-Agent': 'Mozilla/5.0' }
             });
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data)) {
-                    news.push(...data.map((n: any) => n.title));
+                    return data.map((n: any) => n.title);
                 }
             }
         } catch (e) { }
-    }
+        return [];
+    };
 
+    // Chạy song song cả hai nguồn để tiết kiệm thời gian
+    const [vnDirectNews, fireAntNews] = await Promise.all([
+        fetchVNDirect(),
+        fetchFireAnt()
+    ]);
+
+    const news = [...vnDirectNews, ...fireAntNews];
     return [...new Set(news)].slice(0, 5);
 }
 

@@ -14,8 +14,12 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // 1. Fetch history (enough for stable indicators + 7 days for report)
-        const history = await getSymbolHistory(symbol, 250);
+        // 1. Fetch history and news in parallel to reduce waiting time
+        const [history, fetchedNews] = await Promise.all([
+            getSymbolHistory(symbol, 250),
+            getSymbolNews(symbol)
+        ]);
+
         if (history.length === 0) {
             return NextResponse.json({ error: 'No data found for symbol' }, { status: 404 });
         }
@@ -32,8 +36,8 @@ export async function GET(req: NextRequest) {
         const emaMacdAnalysis = analyzeEMAMACD(closes);
         const bbAnalysis = analyzeBBBreakout(highs, lows, closes, volumes);
 
-        // 3. Fetch News
-        const news = await getSymbolNews(symbol);
+        // 3. Process News
+        let news = [...fetchedNews];
         if (news.length === 0) {
             news.push(`Diễn biến giá ${symbol} trong tuần qua từ ${last7Days[0].c} đến ${last7Days[6].c}`);
             news.push(`Khối lượng giao dịch trung bình đạt ${Math.round(volumes.slice(-7).reduce((a, b) => a + b, 0) / 7)} đơn vị/phiên.`);

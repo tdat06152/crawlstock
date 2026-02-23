@@ -16,12 +16,17 @@ export async function GET(request: NextRequest) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (!profile || profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    // 3. Fetch users from AUTH (The source of truth)
-    const { data: { users }, error: authError } = await serviceClient.auth.admin.listUsers();
+    // 3. Fetch users and profiles simultaneously for better performance
+    const [authData, profileResponse] = await Promise.all([
+        serviceClient.auth.admin.listUsers(),
+        serviceClient.from('profiles').select('*')
+    ]);
+
+    const { data: { users }, error: authError } = authData;
+    const { data: profiles } = profileResponse;
+
     if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
 
-    // 4. Fetch profiles to get roles and expiry (Use serviceClient to bypass RLS)
-    const { data: profiles } = await serviceClient.from('profiles').select('*');
 
     const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 

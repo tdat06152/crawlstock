@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { WatchlistWithPrice } from '@/lib/types';
 import { isInZone } from '@/lib/alert-logic';
 import AnalysisModal from './AnalysisModal';
+import NewsCell from './NewsCell';
 
 interface WatchlistTableProps {
     watchlists: WatchlistWithPrice[];
@@ -125,6 +126,9 @@ export default function WatchlistTable({
                             <th className="px-6 py-5 text-left font-black uppercase tracking-[0.1em] text-[10px]">
                                 Vùng Mua
                             </th>
+                            <th className="px-6 py-5 text-left font-black uppercase tracking-[0.1em] text-[10px] w-48">
+                                Tin Tức & AI Sentiment
+                            </th>
                             <th className="px-6 py-5 text-left font-black uppercase tracking-[0.1em] text-[10px]">
                                 Hành động
                             </th>
@@ -136,7 +140,7 @@ export default function WatchlistTable({
                     <tbody className="divide-y divide-border">
                         {filteredWatchlists.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="px-6 py-24 text-center">
+                                <td colSpan={9} className="px-6 py-24 text-center">
                                     <div className="flex flex-col items-center gap-4">
                                         <div className="text-5xl opacity-20 grayscale">📂</div>
                                         <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
@@ -254,6 +258,9 @@ export default function WatchlistTable({
                                             ) : (
                                                 <span className="text-slate-300 text-[10px] font-bold uppercase italic">N/A</span>
                                             )}
+                                        </td>
+                                        <td className="px-6 py-5 align-top">
+                                            <NewsCell symbol={item.symbol} />
                                         </td>
                                         <td className="px-6 py-5">
                                             <div className="flex flex-col items-start gap-3">

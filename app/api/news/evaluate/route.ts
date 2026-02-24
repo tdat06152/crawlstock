@@ -28,10 +28,12 @@ export async function GET(req: NextRequest) {
             const prompt = `Bạn là chuyên gia chứng khoán am hiểu sâu sắc thị trường Việt Nam.
             Hãy đánh giá tác động của các tin tức và bài phân tích sau đây đối với mã cổ phiếu ${symbol}.
             
-            QUY TẮC PHÂN LOẠI:
-            1. KHÁCH QUAN: Đánh giá dựa trên nội dung tiêu đề. Nếu tin mang lại triển vọng tăng trưởng, báo lãi, hoặc kế hoạch tích cực thì là GOOD. Nếu tin báo lỗ, giảm sút, rủi ro thì là BAD.
-            2. KHÔNG PHÂN BIỆT NGUỒN TIN: Cả [BÀI PHÂN TÍCH NỘI BỘ] và [TIN TỨC CÔNG KHAI] đều phải được đánh giá dựa trên hướng tích cực/tiêu cực của chúng. Bài phân tích có thể cảnh báo rủi ro (BAD) hoặc triển vọng (GOOD).
-            3. HẠN CHẾ TRUNG LẬP: Tránh chọn NEUTRAL tối đa. Chỉ chọn NEUTRAL khi tin hoàn toàn là thông tin hành chính không ảnh hưởng đến giá cổ phiếu.
+            QUY TẮC PHÂN LOẠI CỰC KỲ NGHIÊM NGẶT:
+            1. GOOD (TÍCH CỰC): Nếu tin báo lãi, tăng trưởng, kế hoạch mở rộng, trúng thầu, triển vọng tốt, hoặc bài phân tích khen ngợi tiềm năng (như "kỷ nguyên vươn mình", "thăng hoa", "hồi phục").
+            2. BAD (TIÊU CỰC): Nếu tin báo lỗ, giảm lợi nhuận, tin xấu về ban lãnh đạo, rủi ro vĩ mô, hoặc bài phân tích cảnh báo nguy cơ.
+            3. NEUTRAL (TRUNG LẬP): Chỉ dùng cho tin thủ tục hành chính thuần túy (như báo cáo tình hình quản trị thường niên, thông báo ngày chốt danh sách họp mà không có nội dung gì thêm).
+            
+            HẠN CHẾ TRUNG LẬP: Nếu bài viết là PHÂN TÍCH (Analysis), gần như chắc chắn nó phải là GOOD hoặc BAD. Hãy đọc kỹ nội dung để cảm nhận tông giọng của người viết.
             
             CHỈ TRẢ VỀ ĐÚNG 1 TỪ DUY NHẤT: GOOD, BAD, hoặc NEUTRAL.
             
@@ -39,11 +41,24 @@ export async function GET(req: NextRequest) {
             ${latestNewsText}`;
 
             const result = await geminiModel.generateContent(prompt);
-            const text = (await result.response.text()).trim().toUpperCase();
+            const textRaw = await result.response.text();
+            const text = textRaw.trim().toUpperCase();
 
-            if (text.includes('GOOD')) sentiment = 'GOOD';
-            else if (text.includes('BAD')) sentiment = 'BAD';
-            else sentiment = 'NEUTRAL';
+            // Phân loại dựa trên kết quả AI
+            if (text.includes('GOOD')) {
+                sentiment = 'GOOD';
+            } else if (text.includes('BAD')) {
+                sentiment = 'BAD';
+            } else {
+                // Fallback nếu AI trả về trung lập cho bài phân tích tích cực
+                if (latestNewsText.toLowerCase().includes('vươn mình') ||
+                    latestNewsText.toLowerCase().includes('triển vọng') ||
+                    latestNewsText.toLowerCase().includes('tăng trưởng')) {
+                    sentiment = 'GOOD';
+                } else {
+                    sentiment = 'NEUTRAL';
+                }
+            }
         } catch (aiError) {
             console.error('AI Sentiment Error:', aiError);
         }

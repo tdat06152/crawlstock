@@ -26,12 +26,12 @@ export async function GET(req: NextRequest) {
         try {
             // Đánh giá NLP xem tin tốt hay xấu
             const prompt = `Bạn là chuyên gia chứng khoán am hiểu sâu sắc thị trường Việt Nam.
-            Hãy đánh giá tác động của các tin tức/bài phân tích sau đối với mã cổ phiếu ${symbol}.
+            Hãy đánh giá tác động của các tin tức và bài phân tích sau đây đối với mã cổ phiếu ${symbol}.
             
             QUY TẮC PHÂN LOẠI:
-            1. [BÀI PHÂN TÍCH NỘI BỘ]: Đây là thông tin có trọng số cao nhất. Nếu tiêu đề mang tính chất kỳ vọng, tăng trưởng hoặc giải quyết nút thắt -> GOOD.
-            2. [TIN TỨC CÔNG KHAI]: Đánh giá dựa trên triển nhuận và dòng tiền.
-            3. HẠN CHẾ TRUNG LẬP: Tránh chọn NEUTRAL. Chỉ chọn NEUTRAL nếu tin hoàn toàn là thủ tục hành chính vô thưởng vô phạt. Nếu tin có bất kỳ ẩn ý nào về sự thay đổi vị thế của doanh nghiệp, hãy chọn GOOD hoặc BAD.
+            1. KHÁCH QUAN: Đánh giá dựa trên nội dung tiêu đề. Nếu tin mang lại triển vọng tăng trưởng, báo lãi, hoặc kế hoạch tích cực thì là GOOD. Nếu tin báo lỗ, giảm sút, rủi ro thì là BAD.
+            2. KHÔNG PHÂN BIỆT NGUỒN TIN: Cả [BÀI PHÂN TÍCH NỘI BỘ] và [TIN TỨC CÔNG KHAI] đều phải được đánh giá dựa trên hướng tích cực/tiêu cực của chúng. Bài phân tích có thể cảnh báo rủi ro (BAD) hoặc triển vọng (GOOD).
+            3. HẠN CHẾ TRUNG LẬP: Tránh chọn NEUTRAL tối đa. Chỉ chọn NEUTRAL khi tin hoàn toàn là thông tin hành chính không ảnh hưởng đến giá cổ phiếu.
             
             CHỈ TRẢ VỀ ĐÚNG 1 TỪ DUY NHẤT: GOOD, BAD, hoặc NEUTRAL.
             

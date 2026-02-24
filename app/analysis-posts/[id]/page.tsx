@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import ReactMarkdown from 'react-markdown';
 import Link from 'next/link';
 
-export default function AnalysisPostDetailPage({ params }: { params: { id: string } }) {
+export default function AnalysisPostDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
     const [post, setPost] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -22,7 +23,7 @@ export default function AnalysisPostDetailPage({ params }: { params: { id: strin
 
         const loadPost = async () => {
             try {
-                const res = await fetch(`/api/analysis-posts/${params.id}`);
+                const res = await fetch(`/api/analysis-posts/${id}`);
                 if (res.ok) {
                     const data = await res.json();
                     setPost(data);
@@ -36,7 +37,7 @@ export default function AnalysisPostDetailPage({ params }: { params: { id: strin
             }
         };
         loadPost();
-    }, [params.id]);
+    }, [id]);
 
     if (loading) {
         return (

@@ -36,11 +36,11 @@ export async function GET(req: NextRequest) {
         const emaMacdAnalysis = analyzeEMAMACD(closes);
         const bbAnalysis = analyzeBBBreakout(highs, lows, closes, volumes);
 
-        // 3. Process News
-        let news = [...fetchedNews];
-        if (news.length === 0) {
-            news.push(`Diễn biến giá ${symbol} trong tuần qua từ ${last7Days[0].c} đến ${last7Days[6].c}`);
-            news.push(`Khối lượng giao dịch trung bình đạt ${Math.round(volumes.slice(-7).reduce((a, b) => a + b, 0) / 7)} đơn vị/phiên.`);
+        // 3. Process News - extract titles as strings for Gemini
+        let newsStrings: string[] = fetchedNews.map(n => n.title);
+        if (newsStrings.length === 0) {
+            newsStrings.push(`Diễn biến giá ${symbol} trong tuần qua từ ${last7Days[0].c} đến ${last7Days[6].c}`);
+            newsStrings.push(`Khối lượng giao dịch trung bình đạt ${Math.round(volumes.slice(-7).reduce((a, b) => a + b, 0) / 7)} đơn vị/phiên.`);
         }
 
         // 4. Run Gemini Analysis
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
                 ema_macd: emaMacdAnalysis,
                 bollinger: bbAnalysis
             },
-            news
+            news: newsStrings
         });
 
         return NextResponse.json({ symbol, analysis });

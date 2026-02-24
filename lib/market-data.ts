@@ -83,9 +83,12 @@ export async function getSymbolHistory(symbol: string, days: number = 200): Prom
 export async function getSymbolNews(symbol: string): Promise<{ title: string, link: string }[]> {
     const fetchCafeF = async () => {
         try {
-            const res = await fetch(`https://cafef.vn/du-lieu/Ajax/Events_RelatedNews_New.aspx?symbol=${symbol}&PageSize=5&PageIndex=1`, {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - 14);
+
+            const res = await fetch(`https://cafef.vn/du-lieu/Ajax/Events_RelatedNews_New.aspx?symbol=${symbol}&PageSize=10&PageIndex=1`, {
                 headers: { 'User-Agent': 'Mozilla/5.0' },
-                next: { revalidate: 1800 }
+                next: { revalidate: 300 }
             });
             if (res.ok) {
                 const html = await res.text();

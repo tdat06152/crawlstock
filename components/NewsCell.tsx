@@ -1,9 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+
+interface NewsItem {
+    title: string;
+    link: string;
+}
 
 export default function NewsCell({ symbol }: { symbol: string }) {
-    const [news, setNews] = useState<{ title: string, link: string } | null>(null);
+    const [news, setNews] = useState<NewsItem | null>(null);
     const [sentiment, setSentiment] = useState<'GOOD' | 'BAD' | 'NEUTRAL' | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -43,25 +49,39 @@ export default function NewsCell({ symbol }: { symbol: string }) {
         return <span className="text-xs text-slate-400 italic">Không có tin đáng chú ý</span>;
     }
 
+    const sentimentConfig = {
+        GOOD: { label: '👍 TÍCH CỰC', className: 'bg-emerald-100 text-emerald-700' },
+        BAD: { label: '👎 TIÊU CỰC', className: 'bg-rose-100 text-rose-700' },
+        NEUTRAL: { label: '➡️ TRUNG LẬP', className: 'bg-slate-100 text-slate-600' },
+    };
+
+    const config = sentiment ? sentimentConfig[sentiment] : sentimentConfig.NEUTRAL;
+    const isInternal = news.link.startsWith('/');
+
     return (
         <div className="flex flex-col gap-1 max-w-[200px]">
-            <span
-                className={`text-[9px] font-bold px-1.5 py-0.5 w-fit rounded ${sentiment === 'GOOD' ? 'bg-emerald-100 text-emerald-700' :
-                    sentiment === 'BAD' ? 'bg-rose-100 text-rose-700' :
-                        'bg-slate-100 text-slate-600'
-                    }`}
-            >
-                {sentiment === 'GOOD' ? '👍 TÍCH CỰC' : sentiment === 'BAD' ? '👎 TIÊU CỰC' : 'TIN TỨC'}
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 w-fit rounded ${config.className}`}>
+                {config.label}
             </span>
-            <a
-                href={news.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-slate-700 line-clamp-2 leading-tight hover:text-accent hover:underline transition-all"
-                title={news.title}
-            >
-                {news.title}
-            </a>
+            {isInternal ? (
+                <Link
+                    href={news.link}
+                    className="text-xs text-slate-700 line-clamp-2 leading-tight hover:text-accent hover:underline transition-all"
+                    title={news.title}
+                >
+                    {news.title}
+                </Link>
+            ) : (
+                <a
+                    href={news.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-slate-700 line-clamp-2 leading-tight hover:text-accent hover:underline transition-all"
+                    title={news.title}
+                >
+                    {news.title}
+                </a>
+            )}
         </div>
     );
 }

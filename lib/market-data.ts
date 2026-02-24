@@ -124,7 +124,7 @@ export async function getSymbolNews(symbol: string): Promise<string[]> {
             const { data, error } = await supabase
                 .from('analysis_posts')
                 .select('title, created_at')
-                .eq('symbol', symbol)
+                .ilike('symbol', `%${symbol}%`)
                 .gte('created_at', fourteenDaysAgo.toISOString())
                 .order('created_at', { ascending: false })
                 .limit(2);

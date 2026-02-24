@@ -30,8 +30,19 @@ export async function GET(req: NextRequest) {
 
         const role = profile?.role || 'user';
 
-        // 3. Fetch Scan Snapshot
-        const allItems = await getScanSnapshot(date);
+        // 3. Fetch Scan Snapshot with fallback up to 5 days
+        let allItems: any[] = [];
+        let currentDate = new Date(date);
+
+        for (let i = 0; i < 5; i++) {
+            const formattedDate = currentDate.toISOString().split('T')[0];
+            allItems = await getScanSnapshot(formattedDate);
+            if (allItems && allItems.length > 0) {
+                break;
+            }
+            // Go back 1 day
+            currentDate.setDate(currentDate.getDate() - 1);
+        }
 
         if (role === 'admin') {
             return NextResponse.json(allItems);
@@ -43,10 +54,12 @@ export async function GET(req: NextRequest) {
             .select('symbol')
             .eq('user_id', user.id);
 
-        const userSymbols = userWatchlist?.map(w => w.symbol) || [];
+        const userSymbols = userWatchlist?.map(w => w.symbol?.toUpperCase().trim()) || [];
         const allowedSymbols = new Set([...VN30_SYMBOLS, ...userSymbols]);
 
-        const filteredItems = allItems.filter((item: any) => allowedSymbols.has(item.symbol));
+        const filteredItems = allItems.filter((item: any) =>
+            item.symbol && allowedSymbols.has(item.symbol.toUpperCase().trim())
+        );
 
         return NextResponse.json(filteredItems);
     } catch (error) {

@@ -5,7 +5,7 @@ export async function GET(
     req: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const { id } = params;
+    const { id } = await params;
     const serviceClient = createServiceClient();
 
     // Fetch post first
@@ -38,7 +38,7 @@ export async function PUT(
     req: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const { id } = params;
+    const { id } = await params;
     const supabase = await getServerClient();
 
     // Check auth
@@ -92,7 +92,7 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const { id } = params;
+    const { id } = await params;
     const supabase = await getServerClient();
 
     // Check auth

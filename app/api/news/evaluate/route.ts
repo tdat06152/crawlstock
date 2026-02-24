@@ -25,12 +25,17 @@ export async function GET(req: NextRequest) {
         let sentiment = 'NEUTRAL';
         try {
             // Đánh giá NLP xem tin tốt hay xấu
-            const prompt = `Bạn là chuyên gia chứng khoán. Hãy đánh giá tin tức sau đối với cổ phiếu ${symbol} dựa trên thực tế thị trường Việt Nam.
-            Ghi chú: [BÀI PHÂN TÍCH NỘI BỘ] là do các chuyên gia của chúng tôi viết nên có độ tin cậy cao nhất.
+            const prompt = `Bạn là chuyên gia chứng khoán am hiểu sâu sắc thị trường Việt Nam.
+            Hãy đánh giá tác động của các tin tức/bài phân tích sau đối với mã cổ phiếu ${symbol}.
             
-            Chỉ trả về đúng 1 từ duy nhất: GOOD (nếu tin tích cực/triển vọng), BAD (nếu tin xấu/lỗ/tiền trọng), hoặc NEUTRAL (trung tính).
+            QUY TẮC PHÂN LOẠI:
+            1. [BÀI PHÂN TÍCH NỘI BỘ]: Đây là thông tin có trọng số cao nhất. Nếu tiêu đề mang tính chất kỳ vọng, tăng trưởng hoặc giải quyết nút thắt -> GOOD.
+            2. [TIN TỨC CÔNG KHAI]: Đánh giá dựa trên triển nhuận và dòng tiền.
+            3. HẠN CHẾ TRUNG LẬP: Tránh chọn NEUTRAL. Chỉ chọn NEUTRAL nếu tin hoàn toàn là thủ tục hành chính vô thưởng vô phạt. Nếu tin có bất kỳ ẩn ý nào về sự thay đổi vị thế của doanh nghiệp, hãy chọn GOOD hoặc BAD.
             
-            Các tin tức/phân tích gần đây:
+            CHỈ TRẢ VỀ ĐÚNG 1 TỪ DUY NHẤT: GOOD, BAD, hoặc NEUTRAL.
+            
+            Dữ liệu đầu vào:
             ${latestNewsText}`;
 
             const result = await geminiModel.generateContent(prompt);
@@ -38,6 +43,7 @@ export async function GET(req: NextRequest) {
 
             if (text.includes('GOOD')) sentiment = 'GOOD';
             else if (text.includes('BAD')) sentiment = 'BAD';
+            else sentiment = 'NEUTRAL';
         } catch (aiError) {
             console.error('AI Sentiment Error:', aiError);
         }

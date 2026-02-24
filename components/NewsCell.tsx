@@ -56,7 +56,11 @@ export default function NewsCell({ symbol }: { symbol: string }) {
     };
 
     const config = sentiment ? sentimentConfig[sentiment] : sentimentConfig.NEUTRAL;
-    const isInternal = news.link.startsWith('/');
+    // Convert /analysis-posts/{id} links to use query param format for modal support
+    const rawLink = news.link.startsWith('/analysis-posts/') && !news.link.includes('?')
+        ? `/analysis-posts?id=${news.link.replace('/analysis-posts/', '')}`
+        : news.link;
+    const isInternal = rawLink.startsWith('/');
 
     return (
         <div className="flex flex-col gap-1 max-w-[200px]">
@@ -65,7 +69,7 @@ export default function NewsCell({ symbol }: { symbol: string }) {
             </span>
             {isInternal ? (
                 <Link
-                    href={news.link}
+                    href={rawLink}
                     className="text-xs text-slate-700 line-clamp-2 leading-tight hover:text-accent hover:underline transition-all"
                     title={news.title}
                 >
@@ -73,7 +77,7 @@ export default function NewsCell({ symbol }: { symbol: string }) {
                 </Link>
             ) : (
                 <a
-                    href={news.link}
+                    href={rawLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-slate-700 line-clamp-2 leading-tight hover:text-accent hover:underline transition-all"

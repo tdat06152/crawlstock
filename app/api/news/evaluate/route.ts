@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSymbolNews } from '@/lib/market-data';
 import { geminiModel } from '@/lib/gemini';
+import { createServiceClient } from '@/lib/supabase-server';
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
@@ -17,23 +18,46 @@ export async function GET(req: NextRequest) {
         }
 
         const latestNewsItem = news[0];
-        const latestNewsText = news.slice(0, 3).map(n => {
+
+        // Nếu là bài phân tích nội bộ → lấy sentiment thủ công đã lưu từ DB (chính xác hơn AI)
+        const isInternalPost = latestNewsItem.link.startsWith('/analysis-posts');
+        if (isInternalPost) {
+            try {
+                // Lấy ID từ cả hai dạng link: /analysis-posts/{id} và /analysis-posts?id={id}
+                const postId = latestNewsItem.link.includes('?id=')
+                    ? latestNewsItem.link.split('?id=')[1]
+                    : latestNewsItem.link.replace('/analysis-posts/', '');
+
+                const supabase = createServiceClient();
+                const { data: post } = await supabase
+                    .from('analysis_posts')
+                    .select('sentiment')
+                    .eq('id', postId)
+                    .single();
+
+                if (post?.sentiment) {
+                    return NextResponse.json({ sentiment: post.sentiment, news: latestNewsItem });
+                }
+            } catch (dbErr) {
+                console.warn('Could not fetch post sentiment from DB:', dbErr);
+            }
+        }
+
+        // Với tin CafeF bên ngoài → dùng AI đánh giá
+        const latestNewsText = news.slice(0, 3).map((n: { title: string; link: string }) => {
             const type = n.title.includes('[StockMonitor Analysis]') ? 'BÀI PHÂN TÍCH NỘI BỘ' : 'TIN TỨC CÔNG KHAI';
             return `${type}: ${n.title}`;
         }).join('\n');
 
         let sentiment = 'NEUTRAL';
         try {
-            // Đánh giá NLP xem tin tốt hay xấu
             const prompt = `Bạn là chuyên gia chứng khoán am hiểu sâu sắc thị trường Việt Nam.
-            Hãy đánh giá tác động của các tin tức và bài phân tích sau đây đối với mã cổ phiếu ${symbol}.
+            Hãy đánh giá tác động của các tin tức sau đây đối với mã cổ phiếu ${symbol}.
             
             QUY TẮC PHÂN LOẠI CỰC KỲ NGHIÊM NGẶT:
-            1. GOOD (TÍCH CỰC): Nếu tin báo lãi, tăng trưởng, kế hoạch mở rộng, trúng thầu, triển vọng tốt, hoặc bài phân tích khen ngợi tiềm năng (như "kỷ nguyên vươn mình", "thăng hoa", "hồi phục").
-            2. BAD (TIÊU CỰC): Nếu tin báo lỗ, giảm lợi nhuận, tin xấu về ban lãnh đạo, rủi ro vĩ mô, hoặc bài phân tích cảnh báo nguy cơ.
-            3. NEUTRAL (TRUNG LẬP): Chỉ dùng cho tin thủ tục hành chính thuần túy (như báo cáo tình hình quản trị thường niên, thông báo ngày chốt danh sách họp mà không có nội dung gì thêm).
-            
-            HẠN CHẾ TRUNG LẬP: Nếu bài viết là PHÂN TÍCH (Analysis), gần như chắc chắn nó phải là GOOD hoặc BAD. Hãy đọc kỹ nội dung để cảm nhận tông giọng của người viết.
+            1. GOOD (TÍCH CỰC): Nếu tin báo lãi, tăng trưởng, kế hoạch mở rộng, trúng thầu, triển vọng tốt.
+            2. BAD (TIÊU CỰC): Nếu tin báo lỗ, giảm lợi nhuận, tin xấu về ban lãnh đạo, rủi ro vĩ mô.
+            3. NEUTRAL (TRUNG LẬP): Chỉ dùng cho tin thủ tục hành chính thuần túy.
             
             CHỈ TRẢ VỀ ĐÚNG 1 TỪ DUY NHẤT: GOOD, BAD, hoặc NEUTRAL.
             
@@ -44,20 +68,12 @@ export async function GET(req: NextRequest) {
             const textRaw = await result.response.text();
             const text = textRaw.trim().toUpperCase();
 
-            // Phân loại dựa trên kết quả AI
             if (text.includes('GOOD')) {
                 sentiment = 'GOOD';
             } else if (text.includes('BAD')) {
                 sentiment = 'BAD';
             } else {
-                // Fallback nếu AI trả về trung lập cho bài phân tích tích cực
-                if (latestNewsText.toLowerCase().includes('vươn mình') ||
-                    latestNewsText.toLowerCase().includes('triển vọng') ||
-                    latestNewsText.toLowerCase().includes('tăng trưởng')) {
-                    sentiment = 'GOOD';
-                } else {
-                    sentiment = 'NEUTRAL';
-                }
+                sentiment = 'NEUTRAL';
             }
         } catch (aiError) {
             console.error('AI Sentiment Error:', aiError);

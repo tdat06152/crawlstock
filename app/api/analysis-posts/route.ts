@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { symbol, title, content, image_url } = body;
+    const { symbol, title, content, image_url, sentiment } = body;
 
     const { data, error } = await supabase
         .from('analysis_posts')
@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
             title,
             content,
             image_url,
+            sentiment: sentiment || 'NEUTRAL',
             author_id: user.id
         })
         .select()

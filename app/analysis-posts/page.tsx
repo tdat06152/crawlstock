@@ -1,12 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import NotificationManager from '@/components/NotificationManager';
 import { createClient } from '@/lib/supabase-client';
 import ReactMarkdown from 'react-markdown';
 
-export default function AnalysisPostsPage() {
+type SentimentType = 'GOOD' | 'BAD' | 'NEUTRAL';
+
+const SENTIMENT_CONFIG: Record<SentimentType, { label: string; className: string }> = {
+    GOOD: { label: '👍 TÍCH CỰC', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+    BAD: { label: '👎 TIÊU CỰC', className: 'bg-rose-100 text-rose-700 border-rose-200' },
+    NEUTRAL: { label: '➡️ TRUNG LẬP', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+};
+
+function AnalysisPostsContent() {
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<any>(null);
@@ -14,11 +23,15 @@ export default function AnalysisPostsPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedPost, setSelectedPost] = useState<any>(null);
 
+    const searchParams = useSearchParams();
+    const router = useRouter();
+
     const [form, setForm] = useState({
         symbol: '',
         title: '',
         content: '',
-        image_url: ''
+        image_url: '',
+        sentiment: 'NEUTRAL' as SentimentType,
     });
 
     const supabase = createClient();
@@ -27,6 +40,17 @@ export default function AnalysisPostsPage() {
         checkAuth();
         loadPosts();
     }, []);
+
+    // Nếu có query param ?id=xxx thì mở modal bài viết tương ứng
+    useEffect(() => {
+        const postId = searchParams.get('id');
+        if (postId && posts.length > 0) {
+            const found = posts.find(p => p.id === postId);
+            if (found) {
+                setSelectedPost(found);
+            }
+        }
+    }, [searchParams, posts]);
 
     const checkAuth = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -62,7 +86,7 @@ export default function AnalysisPostsPage() {
             });
 
             if (res.ok) {
-                setForm({ symbol: '', title: '', content: '', image_url: '' });
+                setForm({ symbol: '', title: '', content: '', image_url: '', sentiment: 'NEUTRAL' });
                 loadPosts();
                 alert('Đăng bài phân tích thành công!');
             } else {
@@ -75,6 +99,17 @@ export default function AnalysisPostsPage() {
         }
     };
 
+    const handleOpenPost = (post: any) => {
+        setSelectedPost(post);
+        // Cập nhật URL để có thể share link
+        router.replace(`/analysis-posts?id=${post.id}`, { scroll: false });
+    };
+
+    const handleClosePost = () => {
+        setSelectedPost(null);
+        router.replace('/analysis-posts', { scroll: false });
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 text-slate-800">
             <NotificationManager />
@@ -83,7 +118,7 @@ export default function AnalysisPostsPage() {
             <main className="max-w-5xl mx-auto px-6 py-10">
                 <div className="mb-10">
                     <h2 className="text-4xl font-extrabold tracking-tight mb-2 text-slate-900">Bài Phân Tích</h2>
-                    <p className="text-slate-500 font-medium">Báo cáo & góc nhìn chuyên sâu về các mã cổ phiếu</p>
+                    <p className="text-slate-500 font-medium">Báo cáo &amp; góc nhìn chuyên sâu về các mã cổ phiếu</p>
                 </div>
 
                 {(user && (role === 'admin' || role === 'member')) && (
@@ -110,6 +145,27 @@ export default function AnalysisPostsPage() {
                                     />
                                 </div>
                             </div>
+
+                            {/* Trường Tính Chất (Sentiment) */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tính Chất Bài Phân Tích</label>
+                                <div className="flex gap-3">
+                                    {(Object.entries(SENTIMENT_CONFIG) as [SentimentType, typeof SENTIMENT_CONFIG[SentimentType]][]).map(([key, cfg]) => (
+                                        <button
+                                            key={key}
+                                            type="button"
+                                            onClick={() => setForm({ ...form, sentiment: key })}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl border-2 text-xs font-bold transition-all ${form.sentiment === key
+                                                    ? `${cfg.className} border-current ring-2 ring-offset-1 ring-current/30 scale-[1.02]`
+                                                    : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                                }`}
+                                        >
+                                            {cfg.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Link Ảnh Minh Hoạ (Tuỳ chọn)</label>
                                 <input
@@ -148,47 +204,57 @@ export default function AnalysisPostsPage() {
                             <p className="text-slate-500">Chưa có bài phân tích nào.</p>
                         </div>
                     ) : (
-                        posts.map(post => (
-                            <article
-                                key={post.id}
-                                onClick={() => setSelectedPost(post)}
-                                className="cursor-pointer bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all group"
-                            >
-                                {post.image_url && (
-                                    <div className="w-full h-48 bg-slate-100 relative overflow-hidden">
-                                        <img
-                                            src={post.image_url}
-                                            alt=""
-                                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                        />
+                        posts.map(post => {
+                            const sentiment = (post.sentiment as SentimentType) || 'NEUTRAL';
+                            const sentCfg = SENTIMENT_CONFIG[sentiment];
+                            return (
+                                <article
+                                    key={post.id}
+                                    onClick={() => handleOpenPost(post)}
+                                    className="cursor-pointer bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all group"
+                                >
+                                    {post.image_url && (
+                                        <div className="w-full h-48 bg-slate-100 relative overflow-hidden">
+                                            <img
+                                                src={post.image_url}
+                                                alt=""
+                                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            />
+                                        </div>
+                                    )}
+                                    <div className="p-6 flex flex-col flex-1">
+                                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                                            <span className="font-black bg-accent/10 text-accent px-2.5 py-1 rounded text-[10px] uppercase tracking-widest">{post.symbol}</span>
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${sentCfg.className}`}>
+                                                {sentCfg.label}
+                                            </span>
+                                            <span className="text-xs text-slate-400 font-medium ml-auto">{new Date(post.created_at).toLocaleDateString('vi-VN')}</span>
+                                        </div>
+                                        <h3 className="text-xl font-bold mb-3 line-clamp-2 text-slate-900 leading-snug group-hover:text-accent transition-colors">{post.title}</h3>
+                                        <p className="text-sm text-slate-500 mb-6 line-clamp-3 leading-relaxed">
+                                            {post.content}
+                                        </p>
+                                        <div className="mt-auto text-xs text-slate-400 font-medium pt-4 border-t border-slate-100 flex items-center justify-between">
+                                            <span>Bởi: {post.profiles?.email?.split('@')[0] || 'Unknown User'}</span>
+                                            <span className="text-accent font-bold group-hover:underline">Đọc tiếp &rarr;</span>
+                                        </div>
                                     </div>
-                                )}
-                                <div className="p-6 flex flex-col flex-1">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="font-black bg-accent/10 text-accent px-2.5 py-1 rounded text-[10px] uppercase tracking-widest">{post.symbol}</span>
-                                        <span className="text-xs text-slate-400 font-medium">{new Date(post.created_at).toLocaleDateString('vi-VN')}</span>
-                                    </div>
-                                    <h3 className="text-xl font-bold mb-3 line-clamp-2 text-slate-900 leading-snug group-hover:text-accent transition-colors">{post.title}</h3>
-                                    <p className="text-sm text-slate-500 mb-6 line-clamp-3 leading-relaxed">
-                                        {post.content}
-                                    </p>
-                                    <div className="mt-auto text-xs text-slate-400 font-medium pt-4 border-t border-slate-100 flex items-center justify-between">
-                                        <span>Bởi: {post.profiles?.email?.split('@')[0] || 'Unknown User'}</span>
-                                        <span className="text-accent font-bold group-hover:underline">Đọc tiếp &rarr;</span>
-                                    </div>
-                                </div>
-                            </article>
-                        ))
+                                </article>
+                            );
+                        })
                     )}
                 </div>
 
                 {/* Modal Chi Tiết Bài Phân Tích */}
                 {selectedPost && (
-                    <div className="fixed inset-0 z-50 flex justify-center items-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
+                    <div
+                        className="fixed inset-0 z-50 flex justify-center items-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm"
+                        onClick={(e) => { if (e.target === e.currentTarget) handleClosePost(); }}
+                    >
                         <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-300 relative flex flex-col">
                             {/* Nút đóng */}
                             <button
-                                onClick={() => setSelectedPost(null)}
+                                onClick={handleClosePost}
                                 className="absolute top-4 right-4 z-20 w-10 h-10 bg-white/50 backdrop-blur-md rounded-full flex items-center justify-center text-slate-900 border border-slate-200 hover:bg-white hover:scale-110 active:scale-95 transition-all shadow-sm"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -206,7 +272,14 @@ export default function AnalysisPostsPage() {
                                         />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
                                         <div className="absolute bottom-6 left-6 right-6 text-white md:bottom-10 md:left-10 md:right-10 drop-shadow-lg">
-                                            <span className="inline-block font-black bg-accent text-white px-3 py-1 rounded-lg text-xs uppercase tracking-widest mb-3 shadow-lg">{selectedPost.symbol}</span>
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="inline-block font-black bg-accent text-white px-3 py-1 rounded-lg text-xs uppercase tracking-widest shadow-lg">{selectedPost.symbol}</span>
+                                                {(() => {
+                                                    const s = (selectedPost.sentiment as SentimentType) || 'NEUTRAL';
+                                                    const c = SENTIMENT_CONFIG[s];
+                                                    return <span className={`text-[9px] font-bold px-2.5 py-1 rounded-lg border ${c.className}`}>{c.label}</span>;
+                                                })()}
+                                            </div>
                                             <h2 className="text-3xl md:text-5xl font-extrabold text-white leading-tight">{selectedPost.title}</h2>
                                         </div>
                                     </div>
@@ -215,7 +288,14 @@ export default function AnalysisPostsPage() {
                                 <div className="p-6 md:p-10 grow">
                                     {!selectedPost.image_url && (
                                         <div className="mb-8">
-                                            <span className="inline-block font-black bg-accent/10 text-accent px-3 py-1 rounded-lg text-xs uppercase tracking-widest mb-3">{selectedPost.symbol}</span>
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="inline-block font-black bg-accent/10 text-accent px-3 py-1 rounded-lg text-xs uppercase tracking-widest">{selectedPost.symbol}</span>
+                                                {(() => {
+                                                    const s = (selectedPost.sentiment as SentimentType) || 'NEUTRAL';
+                                                    const c = SENTIMENT_CONFIG[s];
+                                                    return <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${c.className}`}>{c.label}</span>;
+                                                })()}
+                                            </div>
                                             <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 leading-tight">{selectedPost.title}</h2>
                                         </div>
                                     )}
@@ -240,5 +320,13 @@ export default function AnalysisPostsPage() {
                 )}
             </main>
         </div>
+    );
+}
+
+export default function AnalysisPostsPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div></div>}>
+            <AnalysisPostsContent />
+        </Suspense>
     );
 }

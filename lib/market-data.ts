@@ -81,37 +81,27 @@ export async function getSymbolHistory(symbol: string, days: number = 200): Prom
 }
 
 export async function getSymbolNews(symbol: string): Promise<string[]> {
-    const fetchVNDirect = async () => {
+    const fetchCafeF = async () => {
         try {
-            const url = `https://finfo-api.vndirect.com.vn/v4/news?q=codeList:${symbol}&size=5`;
-            const res = await fetch(url, {
+            const res = await fetch(`https://s.cafef.vn/Ajax/Events_RelatedNews_New.aspx?symbol=${symbol}&PageSize=5&PageIndex=1`, {
                 headers: { 'User-Agent': 'Mozilla/5.0' },
-                next: { revalidate: 1800 } // 30 mins
+                next: { revalidate: 1800 }
             });
             if (res.ok) {
-                const data = await res.json();
-                if (data?.data) {
-                    return data.data.map((item: any) => `${item.title} (${new Date(item.newsDate).toLocaleDateString('vi-VN')})`);
+                const html = await res.text();
+                const regex = /<a[^>]+title="([^"]+)"/g;
+                let match;
+                const news: string[] = [];
+                while ((match = regex.exec(html)) !== null) {
+                    if (!news.includes(match[1])) {
+                        news.push(match[1]);
+                    }
                 }
+                return news.slice(0, 5);
             }
         } catch (e) {
-            console.warn(`VNDirect news failed for ${symbol}`, e);
+            console.warn(`CafeF news failed for ${symbol}`, e);
         }
-        return [];
-    };
-
-    const fetchFireAnt = async () => {
-        try {
-            const res = await fetch(`https://fireant.vn/api/content/news/symbol?symbol=${symbol}&size=3`, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data)) {
-                    return data.map((n: any) => n.title);
-                }
-            }
-        } catch (e) { }
         return [];
     };
 
@@ -138,29 +128,48 @@ export async function getSymbolNews(symbol: string): Promise<string[]> {
         return [];
     };
 
-    // Chạy song song cả ba nguồn để tiết kiệm thời gian
-    const [vnDirectNews, fireAntNews, analysisPosts] = await Promise.all([
-        fetchVNDirect(),
-        fetchFireAnt(),
+    const [cafeFNews, analysisPosts] = await Promise.all([
+        fetchCafeF(),
         fetchAnalysisPosts()
     ]);
 
     // Ưu tiên Bài phân tích nội bộ lên trước
-    const news = [...analysisPosts, ...vnDirectNews, ...fireAntNews];
+    const news = [...analysisPosts, ...cafeFNews];
     return [...new Set(news)].slice(0, 5);
 }
 
 export async function getMarketNews(): Promise<string[]> {
     try {
-        // Lấy tin tức chung của thị trường (VNDirect market news)
-        const url = `https://finfo-api.vndirect.com.vn/v4/news?q=type:market&size=5`;
+        const query = encodeURIComponent('chứng khoán Việt Nam');
+        const url = `https://news.google.com/rss/search?q=${query}&hl=vi&gl=VN&ceid=VN:vi`;
+
         const res = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
             next: { revalidate: 3600 }
         });
+
         if (res.ok) {
-            const data = await res.json();
-            return data?.data?.map((item: any) => item.title) || [];
+            const rssText = await res.text();
+            const titles: string[] = [];
+
+            // Extract titles using regex
+            const regex = /<title>(.*?)<\/title>/g;
+            let match;
+
+            while ((match = regex.exec(rssText)) !== null) {
+                const title = match[1];
+                // Skip generic titles
+                if (title &&
+                    title !== 'Google News' &&
+                    title !== 'Google Tin tức' &&
+                    !title.includes('Google Tin tức') &&
+                    !title.startsWith('“') &&
+                    !title.startsWith('"')) {
+                    titles.push(title);
+                }
+            }
+
+            return titles.slice(0, 10);
         }
     } catch (e) {
         console.warn('Market news fetch failed', e);

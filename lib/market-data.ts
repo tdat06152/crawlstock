@@ -80,21 +80,31 @@ export async function getSymbolHistory(symbol: string, days: number = 200): Prom
     }
 }
 
-export async function getSymbolNews(symbol: string): Promise<string[]> {
+export async function getSymbolNews(symbol: string): Promise<{ title: string, link: string }[]> {
     const fetchCafeF = async () => {
         try {
-            const res = await fetch(`https://s.cafef.vn/Ajax/Events_RelatedNews_New.aspx?symbol=${symbol}&PageSize=5&PageIndex=1`, {
+            const res = await fetch(`https://cafef.vn/du-lieu/Ajax/Events_RelatedNews_New.aspx?symbol=${symbol}&PageSize=5&PageIndex=1`, {
                 headers: { 'User-Agent': 'Mozilla/5.0' },
                 next: { revalidate: 1800 }
             });
             if (res.ok) {
                 const html = await res.text();
-                const regex = /<a[^>]+title="([^"]+)"/g;
-                let match;
-                const news: string[] = [];
-                while ((match = regex.exec(html)) !== null) {
-                    if (!news.includes(match[1])) {
-                        news.push(match[1]);
+                // Improved regex to handle different attribute orders
+                const news: { title: string, link: string }[] = [];
+                const itemRegex = /<a[^>]+class='docnhanhTitle'[^>]*>([\s\S]*?)<\/a>/g;
+                let itemMatch;
+
+                while ((itemMatch = itemRegex.exec(html)) !== null) {
+                    const itemHtml = itemMatch[0];
+                    const hrefMatch = /href="([^"]+)"/.exec(itemHtml);
+                    const titleMatch = /title="([^"]+)"/.exec(itemHtml);
+
+                    if (hrefMatch && titleMatch) {
+                        const title = titleMatch[1].trim();
+                        const link = hrefMatch[1].startsWith('http') ? hrefMatch[1] : `https://cafef.vn${hrefMatch[1]}`;
+                        if (!news.some(n => n.title === title)) {
+                            news.push({ title, link });
+                        }
                     }
                 }
                 return news.slice(0, 5);
@@ -113,14 +123,17 @@ export async function getSymbolNews(symbol: string): Promise<string[]> {
 
             const { data, error } = await supabase
                 .from('analysis_posts')
-                .select('title, created_at')
+                .select('title, created_at, id')
                 .ilike('symbol', `%${symbol}%`)
                 .gte('created_at', fourteenDaysAgo.toISOString())
                 .order('created_at', { ascending: false })
                 .limit(2);
 
             if (data && !error) {
-                return data.map((item: any) => `[StockMonitor Analysis] ${item.title} (${new Date(item.created_at).toLocaleDateString('vi-VN')})`);
+                return data.map((item: any) => ({
+                    title: `[StockMonitor Analysis] ${item.title} (${new Date(item.created_at).toLocaleDateString('vi-VN')})`,
+                    link: `/analysis-posts/${item.id}`
+                }));
             }
         } catch (e) {
             console.warn(`Analysis posts fetch failed for ${symbol}`, e);
@@ -133,9 +146,21 @@ export async function getSymbolNews(symbol: string): Promise<string[]> {
         fetchAnalysisPosts()
     ]);
 
-    // Ưu tiên Bài phân tích nội bộ lên trước
     const news = [...analysisPosts, ...cafeFNews];
-    return [...new Set(news)].slice(0, 5);
+    const uniqueNews: { title: string, link: string }[] = [];
+    const titles = new Set();
+    for (const item of news) {
+        if (!titles.has(item.title)) {
+            uniqueNews.push(item);
+            titles.add(item.title);
+        }
+    }
+    return uniqueNews.slice(0, 5);
+}
+
+export async function getSymbolNewsLegacy(symbol: string): Promise<string[]> {
+    const news = await getSymbolNews(symbol);
+    return news.map(n => n.title);
 }
 
 export async function getMarketNews(): Promise<string[]> {

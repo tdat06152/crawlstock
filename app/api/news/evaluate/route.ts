@@ -66,8 +66,10 @@ async function fetchArticleContent(url: string): Promise<string> {
         const html = await res.text();
 
         // Extract article body — CafeF specific selectors first, then generic fallbacks
+        // Extract article body — CafeF uses specific ID and classes
         let text = '';
         const contentMatch =
+            /<div[^>]+id="[^"]*chi-tiet-noi-dung[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html) || // CafeF ID
             /<div[^>]+class="[^"]*detail-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html) ||
             /<div[^>]+class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html) ||
             /<article[^>]*>([\s\S]*?)<\/article>/i.exec(html);
@@ -78,6 +80,7 @@ async function fetchArticleContent(url: string): Promise<string> {
         text = text
             .replace(/<script[\s\S]*?<\/script>/gi, '')
             .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<div[^>]+class="[^"]*link-content-footer[^"]*"[\s\S]*?<\/div>/gi, '') // Remove footer links
             .replace(/<[^>]+>/g, ' ')
             .replace(/&nbsp;/g, ' ')
             .replace(/&amp;/g, '&')
@@ -87,8 +90,8 @@ async function fetchArticleContent(url: string): Promise<string> {
             .replace(/\s{2,}/g, ' ')
             .trim();
 
-        // Keep to ~1500 chars to stay token-efficient
-        return text.slice(0, 1500);
+        // Keep to ~2500 chars for better context while staying within limits
+        return text.slice(0, 2500);
     } catch {
         return '';
     }
@@ -182,37 +185,42 @@ export async function GET(req: NextRequest) {
                 return {
                     title: n.title,
                     link: n.link,
-                    content: content || '(Không thể đọc nội dung)',
+                    content: content || '(Không thể trích xuất nội dung bài báo)',
                 };
             })
         );
 
         const articlesText = articleContents.map((a, i) =>
-            `--- Bài ${i + 1}: ${a.title} ---\n${a.content}`
+            `--- Bài ${i + 1}: ${a.title} ---\nNỘI DUNG: ${a.content}`
         ).join('\n\n');
 
         const otherTitles = news
             .filter(n => !externalNews.find(e => e.link === n.link))
-            .slice(0, 2)
+            .slice(0, 3)
             .map(n => `• ${n.title}`)
             .join('\n');
 
         let sentiment = 'NEUTRAL';
         try {
-            const prompt = `Bạn là chuyên gia chứng khoán Việt Nam. Đọc nội dung bài báo sau và đánh giá tác động đến mã ${symbol}.
+            const prompt = `Bạn là một chuyên gia phân tích thị trường chứng khoán Việt Nam sắc sảo. 
+Nhiệm vụ: Đọc kỹ nội dung các bài báo bên dưới và đánh giá sắc thái ảnh hưởng đến mã cổ phiếu ${symbol}.
 
-QUY TẮC:
-- GOOD: Lợi nhuận tăng, tin tốt, phục hồi, hợp đồng lớn, kết quả kinh doanh khả quan.
-- BAD: Lỗ, doanh thu giảm, rủi ro pháp lý, lãnh đạo bị bắt, nợ xấu, tin tiêu cực.
-- NEUTRAL: Thủ tục hành chính thuần túy (đăng ký cuối cùng, họp ĐHCĐ bình thường).
+QUY TẮC ĐÁNH GIÁ:
+- GOOD: Lợi nhuận tăng, tin tức hứa hẹn (như STB xử lý xong nợ, bứt phá), hợp đồng lớn, kế hoạch kinh doanh tham vọng, phục hồi sau khủng hoảng, trả cổ tức cao.
+- BAD: Thua lỗ, sai phạm pháp luật, lãnh đạo bị bắt, rủi ro nợ xấu nghiêm trọng, bị cắt margin, kết quả kinh doanh kém xa kỳ vọng.
+- NEUTRAL: Các thủ tục hành chính, họp ĐHCĐ định kỳ không có biến động lớn, các giao dịch cấp tín dụng thông thường của ngân hàng (như BID thông qua hạn mức tín dụng - đây là nghiệp vụ bình thường, KHÔNG PHẢI BAD).
 
-LƯU Ý: "Bốc đầu" / "hồi phục mạnh" sau tin xấu thường là GOOD (thị trường đã digest tin xấu).
+LƯU Ý QUAN TRỌNG:
+1. Nếu tiêu đề hoặc nội dung có các từ "bứt phá", "bùng nổ", "kỳ nguyên mới" đi kèm số liệu tích cực -> Ưu tiên chọn GOOD.
+2. Với Ngân hàng (Bank): Việc thông qua hợp đồng cấp tín dụng hay giao dịch nội bộ thông thường thường là NEUTRAL hoặc GOOD, đừng nhầm là BAD.
 
-NỘI DUNG:
+NỘI DUNG CHI TIẾT ĐỂ PHÂN TÍCH:
 ${articlesText}
-${otherTitles ? `\nTIN KHÁC: ${otherTitles}` : ''}
 
-Chỉ trả về 1 từ: GOOD, BAD, hoặc NEUTRAL.`;
+CÁC TIÊU ĐỀ KHÁC LIÊN QUAN:
+${otherTitles ? otherTitles : 'Không có'}
+
+Hãy trả về DUY NHẤT một từ trong ba từ: GOOD, BAD, hoặc NEUTRAL.`.trim();
 
             const textRaw = await callGeminiWithRetry(prompt);
             const text = textRaw.trim().toUpperCase();

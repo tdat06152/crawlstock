@@ -24,7 +24,6 @@ function setCache(symbol: string, sentiment: string, news: { title: string; link
 
 /**
  * Keyword-based fallback sentiment when AI is unavailable.
- * Scans Vietnamese article titles for positive/negative signal words.
  */
 function keywordSentiment(text: string): 'GOOD' | 'BAD' | 'NEUTRAL' {
     const lower = text.toLowerCase();
@@ -53,34 +52,31 @@ function keywordSentiment(text: string): 'GOOD' | 'BAD' | 'NEUTRAL' {
 
 /**
  * Fetch and extract readable text from a Vietnamese news article URL.
- * Returns truncated content (~1500 chars max) for AI analysis.
  */
 async function fetchArticleContent(url: string): Promise<string> {
     try {
         if (!url.startsWith('http')) return '';
         const res = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+            headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
             signal: AbortSignal.timeout(7000),
         });
         if (!res.ok) return '';
         const html = await res.text();
 
-        // Extract article body — CafeF specific selectors first, then generic fallbacks
-        // Extract article body — CafeF uses specific ID and classes
+        // Extract article body
         let text = '';
         const contentMatch =
-            /<div[^>]+id="[^"]*chi-tiet-noi-dung[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html) || // CafeF ID
+            /<div[^>]+id="[^"]*chi-tiet-noi-dung[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html) ||
             /<div[^>]+class="[^"]*detail-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html) ||
             /<div[^>]+class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html) ||
             /<article[^>]*>([\s\S]*?)<\/article>/i.exec(html);
 
         text = contentMatch ? contentMatch[1] : html;
 
-        // Strip scripts, styles, and all HTML tags
         text = text
             .replace(/<script[\s\S]*?<\/script>/gi, '')
             .replace(/<style[\s\S]*?<\/style>/gi, '')
-            .replace(/<div[^>]+class="[^"]*link-content-footer[^"]*"[\s\S]*?<\/div>/gi, '') // Remove footer links
+            .replace(/<div[^>]+class="[^"]*link-content-footer[^"]*"[\s\S]*?<\/div>/gi, '')
             .replace(/<[^>]+>/g, ' ')
             .replace(/&nbsp;/g, ' ')
             .replace(/&amp;/g, '&')
@@ -90,7 +86,6 @@ async function fetchArticleContent(url: string): Promise<string> {
             .replace(/\s{2,}/g, ' ')
             .trim();
 
-        // Keep to ~2500 chars for better context while staying within limits
         return text.slice(0, 2500);
     } catch {
         return '';
@@ -98,28 +93,18 @@ async function fetchArticleContent(url: string): Promise<string> {
 }
 
 /**
- * Call Gemini with automatic retry ONLY on per-minute rate limits.
- * Daily quota exceeded → fails immediately (no point retrying).
+ * Call Gemini with retry logic.
  */
 async function callGeminiWithRetry(prompt: string, maxRetries = 1): Promise<string> {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
             const result = await geminiModel.generateContent(prompt);
             return await result.response.text();
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            const is429 = msg.includes('429');
-            // Daily quota exceeded → quotaId contains 'PerDayPerProject', retrying won't help
-            const isDailyQuota = msg.includes('PerDayPerProject');
-            if (is429 && isDailyQuota) {
-                throw err; // fail immediately → use keyword fallback
-            }
-            if (is429 && attempt < maxRetries) {
-                // Per-minute limit: extract retry delay and wait
-                const delayMatch = /Please retry in (\d+)/.exec(msg);
-                const delaySec = delayMatch ? parseInt(delayMatch[1]) + 1 : 5;
-                console.warn(`[Gemini 429/min] Retrying in ${delaySec}s (attempt ${attempt + 1}/${maxRetries})`);
-                await new Promise(r => setTimeout(r, delaySec * 1000));
+        } catch (err: any) {
+            const msg = err.message || String(err);
+            if (msg.includes('429') && !msg.includes('PerDayPerProject') && attempt < maxRetries) {
+                const delay = 5000;
+                await new Promise(r => setTimeout(r, delay));
                 continue;
             }
             throw err;
@@ -136,7 +121,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Missing symbol' }, { status: 400 });
     }
 
-    // ── 1. Check cache first ─────────────────────────────────────────────────
     const cached = getCached(symbol);
     if (cached) {
         return NextResponse.json({ sentiment: cached.sentiment, news: cached.news, cached: true });
@@ -151,7 +135,7 @@ export async function GET(req: NextRequest) {
 
         const latestNewsItem = news[0];
 
-        // ── 2. Internal analysis posts → use saved DB sentiment ──────────────
+        // 1. Internal analysis posts
         const isInternalPost = latestNewsItem.link.startsWith('/analysis-posts');
         if (isInternalPost) {
             try {
@@ -175,66 +159,54 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // ── 3. External news → fetch article content and call Gemini AI ──────
+        // 2. External news
         const externalNews = news.filter(n => n.link.startsWith('http')).slice(0, 2);
-
-        // Fetch article bodies in parallel
         const articleContents = await Promise.all(
             externalNews.map(async (n) => {
                 const content = await fetchArticleContent(n.link);
                 return {
                     title: n.title,
                     link: n.link,
-                    content: content || '(Không thể trích xuất nội dung bài báo)',
+                    content: content || '(Không trích xuất được nội dung bài báo)',
                 };
             })
         );
 
         const articlesText = articleContents.map((a, i) =>
-            `--- Bài ${i + 1}: ${a.title} ---\nNỘI DUNG: ${a.content}`
+            `--- BÀI BÁO ${i + 1} ---\nTIÊU ĐỀ: ${a.title}\nNỘI DUNG: ${a.content}`
         ).join('\n\n');
 
         const otherTitles = news
             .filter(n => !externalNews.find(e => e.link === n.link))
-            .slice(0, 3)
+            .slice(0, 5)
             .map(n => `• ${n.title}`)
             .join('\n');
 
         let sentiment = 'NEUTRAL';
         try {
-            const prompt = `Bạn là một chuyên gia phân tích thị trường chứng khoán Việt Nam sắc sảo. 
-Nhiệm vụ: Đọc kỹ nội dung các bài báo bên dưới và đánh giá sắc thái ảnh hưởng đến mã cổ phiếu ${symbol}.
+            const prompt = `Bạn là một chuyên gia phân tích chứng khoán Việt Nam hàng đầu. 
+Nhiệm vụ: Phân tích các bài báo dưới đây và đánh giá sắc thái ảnh hưởng đến mã CO PHIEU: ${symbol}.
 
-QUY TẮC ĐÁNH GIÁ:
-- GOOD: Lợi nhuận tăng, tin tức hứa hẹn (như STB xử lý xong nợ, bứt phá), hợp đồng lớn, kế hoạch kinh doanh tham vọng, phục hồi sau khủng hoảng, trả cổ tức cao.
-- BAD: Thua lỗ, sai phạm pháp luật, lãnh đạo bị bắt, rủi ro nợ xấu nghiêm trọng, bị cắt margin, kết quả kinh doanh kém xa kỳ vọng.
-- NEUTRAL: Các thủ tục hành chính, họp ĐHCĐ định kỳ không có biến động lớn, các giao dịch cấp tín dụng thông thường của ngân hàng (như BID thông qua hạn mức tín dụng - đây là nghiệp vụ bình thường, KHÔNG PHẢI BAD).
+QUY TẮC PHÂN LOẠI:
+1. [GOOD]: Tin tốt cực mạnh (Lợi nhuận tăng đột biến, trúng thầu, cổ tức cao, giá "bốc đầu" do tin hỗ trợ tốt, thâu tóm có lợi).
+2. [BAD]: Tin xấu cực mạnh (Lỗ nặng, vi phạm pháp luật, rủi ro nợ xấu nghiêm trọng, kết quả kinh doanh kém xa kỳ vọng).
+3. [NEUTRAL]: Thủ tục hành chính, họp hành ĐHCĐ định kỳ, các nghiệp vụ ngân hàng thông thường (như BID thông qua hạn mức tín dụng - đây là nghiệp vụ bình thường).
 
-LƯU Ý QUAN TRỌNG:
-1. Nếu tiêu đề hoặc nội dung có các từ "bứt phá", "bùng nổ", "kỳ nguyên mới" đi kèm số liệu tích cực -> Ưu tiên chọn GOOD.
-2. Với Ngân hàng (Bank): Việc thông qua hợp đồng cấp tín dụng hay giao dịch nội bộ thông thường thường là NEUTRAL hoặc GOOD, đừng nhầm là BAD.
+LƯU Ý: TIN CỔ PHIẾU "BỐC ĐẦU" DO LỢI NHUẬN HOẶC CỔ TỨC (NHƯ DGC) PHẢI ĐÁNH GIÁ LÀ GOOD.
 
-NỘI DUNG CHI TIẾT ĐỂ PHÂN TÍCH:
-${articlesText}
-
-CÁC TIÊU ĐỀ KHÁC LIÊN QUAN:
-${otherTitles ? otherTitles : 'Không có'}
-
-Hãy trả về DUY NHẤT một từ trong ba từ: GOOD, BAD, hoặc NEUTRAL.`.trim();
+HÃY CHỈ TRẢ VỀ 1 TỪ DUY NHẤT: GOOD, BAD HOẶC NEUTRAL.`.trim();
 
             const textRaw = await callGeminiWithRetry(prompt);
             const text = textRaw.trim().toUpperCase();
 
-            if (text.includes('GOOD')) sentiment = 'GOOD';
-            else if (text.includes('BAD')) sentiment = 'BAD';
+            if (/\bGOOD\b/.test(text)) sentiment = 'GOOD';
+            else if (/\bBAD\b/.test(text)) sentiment = 'BAD';
             else sentiment = 'NEUTRAL';
 
-            console.log(`[News Sentiment] ${symbol}: ${sentiment} | articles: ${articleContents.length} | chars: ${articleContents.map(a => a.content.length).join('+')}`);
+            console.log(`[News Sentiment AI] ${symbol}: ${sentiment} (Raw: "${text}")`);
         } catch (aiError) {
-            console.error(`[News Sentiment] AI error for ${symbol}:`, aiError);
-            // Fallback: keyword-based sentiment from article titles (no AI needed)
+            console.error(`AI error for ${symbol}:`, aiError);
             sentiment = keywordSentiment(news.map(n => n.title).join(' '));
-            console.log(`[News Sentiment] ${symbol}: fallback keyword sentiment = ${sentiment}`);
         }
 
         setCache(symbol, sentiment, latestNewsItem);

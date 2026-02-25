@@ -159,42 +159,31 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // 2. External news
-        const externalNews = news.filter(n => n.link.startsWith('http')).slice(0, 2);
-        const articleContents = await Promise.all(
-            externalNews.map(async (n) => {
-                const content = await fetchArticleContent(n.link);
-                return {
-                    title: n.title,
-                    link: n.link,
-                    content: content || '(Không trích xuất được nội dung bài báo)',
-                };
-            })
-        );
+        // 2. External news: Only evaluate the LATEST news article to match what is displayed in the UI.
+        // This prevents the AI from evaluating older "BAD" news when the UI shows a new "GOOD" headline.
+        const latestExternalNews = latestNewsItem.link.startsWith('http') ? latestNewsItem : news.find(n => n.link.startsWith('http'));
 
-        const articlesText = articleContents.map((a, i) =>
-            `--- BÀI BÁO ${i + 1} ---\nTIÊU ĐỀ: ${a.title}\nNỘI DUNG: ${a.content}`
-        ).join('\n\n');
-
-        const otherTitles = news
-            .filter(n => !externalNews.find(e => e.link === n.link))
-            .slice(0, 5)
-            .map(n => `• ${n.title}`)
-            .join('\n');
+        let articleContentText = '(Không có nội dung chi tiết)';
+        if (latestExternalNews) {
+            const content = await fetchArticleContent(latestExternalNews.link);
+            articleContentText = content || '(Không trích xuất được nội dung bài báo, chỉ dựa vào tiêu đề)';
+        }
 
         let sentiment = 'NEUTRAL';
         try {
             const prompt = `Bạn là một chuyên gia phân tích chứng khoán Việt Nam hàng đầu. 
-Nhiệm vụ: Phân tích các bài báo dưới đây và đánh giá sắc thái ảnh hưởng đến mã CO PHIEU: ${symbol}.
+Nhiệm vụ: Đọc và phân tích bài báo MỚI NHẤT dưới đây để đánh giá sắc thái ảnh hưởng ngắn hạn của nó đối với cổ phiếu ${symbol}.
 
 QUY TẮC PHÂN LOẠI:
-1. [GOOD]: Tin tốt cực mạnh (Lợi nhuận tăng đột biến, trúng thầu, cổ tức cao, giá "bốc đầu" do tin hỗ trợ tốt, thâu tóm có lợi).
-2. [BAD]: Tin xấu cực mạnh (Lỗ nặng, vi phạm pháp luật, rủi ro nợ xấu nghiêm trọng, kết quả kinh doanh kém xa kỳ vọng).
-3. [NEUTRAL]: Thủ tục hành chính, họp hành ĐHCĐ định kỳ, các nghiệp vụ ngân hàng thông thường (như BID thông qua hạn mức tín dụng - đây là nghiệp vụ bình thường).
+1. [GOOD]: Tin tức mang tính tích cực (Ví dụ: lợi nhuận tăng, "bốc đầu", được cấp margin, cổ tức cao, trúng thầu, kế hoạch kinh doanh tham vọng).
+2. [BAD]: Tin tức mang tính tiêu cực (Ví dụ: "bốc hơi" lợi nhuận/vốn hóa, lỗ nặng, lãnh đạo vi phạm, nợ xấu, cắt margin).
+3. [NEUTRAL]: Thủ tục hành chính, nghị quyết ĐHCĐ thông thường, các nghiệp vụ ngân hàng thông thường (như BID thông qua hợp đồng/giao dịch cấp tín dụng - đây là việc kinh doanh rất bình thường của Bank).
 
-LƯU Ý: TIN CỔ PHIẾU "BỐC ĐẦU" DO LỢI NHUẬN HOẶC CỔ TỨC (NHƯ DGC) PHẢI ĐÁNH GIÁ LÀ GOOD.
+BÀI BÁO CẦN ĐÁNH GIÁ:
+Tiêu đề: ${latestExternalNews?.title || latestNewsItem.title}
+Nội dung: ${articleContentText}
 
-HÃY CHỈ TRẢ VỀ 1 TỪ DUY NHẤT: GOOD, BAD HOẶC NEUTRAL.`.trim();
+YÊU CẦU: Chỉ trả về 1 từ duy nhất (GOOD, BAD hoặc NEUTRAL). Không giải thích gì thêm.`.trim();
 
             const textRaw = await callGeminiWithRetry(prompt);
             const text = textRaw.trim().toUpperCase();

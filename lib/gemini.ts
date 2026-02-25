@@ -10,8 +10,8 @@ const lookupGenAI = new GoogleGenerativeAI(lookupKey);
 const analysisGenAI = new GoogleGenerativeAI(analysisKey);
 
 // Các model instance
-export const geminiModel = lookupGenAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-export const analysisGeminiModel = analysisGenAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+export const geminiModel = lookupGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+export const analysisGeminiModel = analysisGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 // ─── 1. Phân tích chiến lược đầy đủ (dùng cho /api/analysis) ────────────────
 // Ngắn gọn hơn: tối đa 200 từ, tập trung vào hành động

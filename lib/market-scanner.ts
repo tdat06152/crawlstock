@@ -161,6 +161,26 @@ export async function runMarketScan() {
                 // Xử lý tuần tự từng mã: lấy tin tức → gọi AI → GỬI (đảm bảo AI xong trước khi gửi)
                 for (const signal of confluenceSignals) {
                     try {
+                        // ── DEDUPLICATION: Kiểm tra đã gửi tín hiệu này hôm nay chưa ──
+                        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD theo UTC
+                        const { data: existingLog, error: logQueryError } = await supabase
+                            .from('confluence_signal_log')
+                            .select('id')
+                            .eq('symbol', signal.symbol)
+                            .eq('signal', signal.signal)
+                            .eq('scan_date', today)
+                            .maybeSingle();
+
+                        if (logQueryError) {
+                            console.error(`[Market Scan] Error checking dedup log for ${signal.symbol}:`, logQueryError);
+                        }
+
+                        if (existingLog) {
+                            console.log(`[Market Scan] Skipping ${signal.symbol} (${signal.signal}) – already sent today (${today}).`);
+                            continue; // bỏ qua, không gửi lại
+                        }
+                        // ── END DEDUPLICATION ──
+
                         const isBuy = signal.signal === 'BUY';
                         const type = isBuy ? '🟢 MUA MẠNH' : '🔴 BÁN MẠNH';
 
@@ -199,6 +219,17 @@ Giá: ${signal.close.toLocaleString('vi-VN')}
 
                         await sendTelegramMessage(message);
                         console.log(`[Market Scan] Telegram sent for ${signal.symbol} ✓`);
+
+                        // Ghi lại log để tránh gửi lại trong ngày
+                        const { error: insertError } = await supabase
+                            .from('confluence_signal_log')
+                            .insert({ symbol: signal.symbol, signal: signal.signal, scan_date: today });
+
+                        if (insertError) {
+                            console.error(`[Market Scan] Failed to write dedup log for ${signal.symbol}:`, insertError);
+                        } else {
+                            console.log(`[Market Scan] Dedup log recorded for ${signal.symbol} (${signal.signal}) on ${today}`);
+                        }
 
                     } catch (e) {
                         console.error(`[Market Scan] Alert failed for ${signal.symbol}:`, e);

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSymbolNews } from '@/lib/market-data';
-import { geminiModel } from '@/lib/gemini';
 import { createServiceClient } from '@/lib/supabase-server';
 
 // ─── In-memory cache (30 min TTL) to reduce Gemini API calls ───────────────
@@ -92,25 +91,18 @@ async function fetchArticleContent(url: string): Promise<string> {
     }
 }
 
+import { generateAIContent } from '@/lib/ai-provider';
+
 /**
- * Call Gemini with retry logic.
+ * Call AI with rotation and fallback.
  */
-async function callGeminiWithRetry(prompt: string, maxRetries = 1): Promise<string> {
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            const result = await geminiModel.generateContent(prompt);
-            return await result.response.text();
-        } catch (err: any) {
-            const msg = err.message || String(err);
-            if (msg.includes('429') && !msg.includes('PerDayPerProject') && attempt < maxRetries) {
-                const delay = 5000;
-                await new Promise(r => setTimeout(r, delay));
-                continue;
-            }
-            throw err;
-        }
+async function callAIWithRotation(prompt: string): Promise<string> {
+    try {
+        return await generateAIContent(prompt, { model: 'gemini-1.5-flash' });
+    } catch (err) {
+        console.error('AI Rotation Error:', err);
+        throw err;
     }
-    throw new Error('Max retries exceeded');
 }
 
 export async function GET(req: NextRequest) {
@@ -185,7 +177,7 @@ Nội dung: ${articleContentText}
 
 YÊU CẦU: Chỉ trả về 1 từ duy nhất (GOOD, BAD hoặc NEUTRAL). Không giải thích gì thêm.`.trim();
 
-            const textRaw = await callGeminiWithRetry(prompt);
+            const textRaw = await callAIWithRotation(prompt);
             const text = textRaw.trim().toUpperCase();
 
             if (/\bGOOD\b/.test(text)) sentiment = 'GOOD';

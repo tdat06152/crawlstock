@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateAIContent } from './ai-provider';
 
 // ─── Two separate Gemini clients ────────────────────────────────────────────
 // GEMINI_LOOKUP_KEY  → dành cho đánh giá sắc thái tin tức (/api/news/evaluate)
@@ -9,9 +10,9 @@ const analysisKey = process.env.GEMINI_ANALYSIS_KEY || '';
 const lookupGenAI = new GoogleGenerativeAI(lookupKey);
 const analysisGenAI = new GoogleGenerativeAI(analysisKey);
 
-// Các model instance
-export const geminiModel = lookupGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-export const analysisGeminiModel = analysisGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+// Các model instance (giữ lại cho tương thích ngược nếu cần)
+export const geminiModel = lookupGenAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+export const analysisGeminiModel = analysisGenAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // ─── 1. Phân tích chiến lược đầy đủ (dùng cho /api/analysis) ────────────────
 // Ngắn gọn hơn: tối đa 200 từ, tập trung vào hành động
@@ -23,8 +24,6 @@ export async function analyzeStockStrategy(data: {
     news: string[],
     marketContext?: string[]
 }) {
-    if (!analysisKey) throw new Error('GEMINI_ANALYSIS_KEY is not configured');
-
     const prompt = `Bạn là chuyên gia chứng khoán Việt Nam. Phân tích ngắn gọn mã ${data.symbol} (${data.period}).
 
 DỮ LIỆU KỸ THUẬT:
@@ -44,11 +43,9 @@ YÊU CẦU (tối đa 150 từ, dùng markdown):
 Ngắn gọn, sắc sảo, chuyên nghiệp.`.trim();
 
     try {
-        const result = await analysisGeminiModel.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
+        return await generateAIContent(prompt, { model: 'gemini-1.5-flash' });
     } catch (error) {
-        console.error('Gemini Analysis Error:', error);
+        console.error('AI Strategy Analysis Error:', error);
         throw error;
     }
 }
@@ -62,8 +59,6 @@ export async function analyzeStockStrategyConcise(data: {
     news: string[],
     marketContext?: string[]
 }) {
-    if (!analysisKey) throw new Error('GEMINI_ANALYSIS_KEY is not configured');
-
     const prompt = `Chuyên gia chứng khoán VN. Phân tích ${data.symbol} (Giá: ${data.close}).
 
 TIN TỨC: ${data.news.length > 0 ? data.news.slice(0, 3).join(' | ') : 'Không có tin mới.'}
@@ -78,15 +73,14 @@ TRẢ LỜI (tối đa 4 câu tiếng Việt):
 
     try {
         console.log(`[AI Analysis] Processing ${data.symbol} with ${data.news.length} news items.`);
-        const result = await analysisGeminiModel.generateContent(prompt);
-        const response = await result.response;
-        let text = response.text();
+        let text = await generateAIContent(prompt, { model: 'gemini-1.5-flash' });
+
         if (data.news.length === 0) {
             text += '\n\n<i>(Lưu ý: Phân tích dựa trên bối cảnh chung, không có tin tức cụ thể)</i>';
         }
         return text;
     } catch (error) {
-        console.error('Gemini Concise Analysis Error:', error);
+        console.error('AI Concise Analysis Error:', error);
         return 'Không thể thực hiện phân tích AI lúc này.';
     }
 }

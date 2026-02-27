@@ -1,15 +1,21 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // --- Configuration ---
-const GEMINI_API_KEY = process.env.GEMINI_ANALYSIS_KEY || process.env.GEMINI_LOOKUP_KEY || '';
+const GEMINI_KEYS = [
+    process.env.GEMINI_ANALYSIS_KEY,
+    process.env.GEMINI_LOOKUP_KEY
+].filter(Boolean) as string[];
+
 const BACKUP_API_KEY = process.env.BACKUP_AI_API_KEY || '';
 const BACKUP_MODELS = (process.env.BACKUP_AI_MODELS || '').split(',').map(m => m.trim()).filter(m => m);
 
-// SiliconFlow is very common for these models in VN.
+// SiliconFlow is very common for these models in VN. 
+// Added some common variations/proxies because .top was not resolving.
 const BACKUP_BASE_URLS = [
     'https://api.siliconflow.cn/v1',
-    'https://api.bee-ai.top/v1',
     'https://api.openai.com/v1',
+    'https://api.beeai.site/v1',
+    'https://api.v-kb.com/v1',
 ];
 
 // --- State ---
@@ -23,34 +29,61 @@ export async function generateAIContent(prompt: string, options: {
     model?: string,
     providerPreference?: 'gemini' | 'backup'
 } = {}): Promise<string> {
-    const { providerPreference = 'gemini', model = 'gemini-1.5-flash' } = options;
+    const { providerPreference = 'gemini', model = 'gemini-2.0-flash' } = options;
 
     // Try preferred provider first
     if (providerPreference === 'gemini') {
         try {
-            return await callGemini(prompt, model);
+            return await callGeminiWithRotation(prompt, model);
         } catch (error) {
-            console.warn(`[AI Provider] Gemini (${model}) failed, falling back to backup models. Error:`, error);
+            console.warn(`[AI Provider] All Gemini keys failed, falling back to backup.`, error);
             return await callBackupAIWithRotation(prompt);
         }
     } else {
         try {
             return await callBackupAIWithRotation(prompt);
         } catch (error) {
-            console.warn('[AI Provider] All backup models failed, falling back to Gemini. Error:', error);
-            return await callGemini(prompt, model);
+            console.warn('[AI Provider] All backup models failed, falling back to Gemini.', error);
+            return await callGeminiWithRotation(prompt, model);
         }
     }
 }
 
 /**
+ * Helper to call Gemini with key rotation on failure (especially for 429)
+ */
+async function callGeminiWithRotation(prompt: string, preferredModel: string): Promise<string> {
+    if (GEMINI_KEYS.length === 0) throw new Error('No Gemini API keys configured');
+
+    const modelsToTry = [preferredModel, 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const uniqueModels = [...new Set(modelsToTry)];
+
+    for (const key of GEMINI_KEYS) {
+        for (const modelName of uniqueModels) {
+            try {
+                process.stdout.write(`[AI Provider] Trying Gemini with model ${modelName}...\n`);
+                return await callGemini(prompt, modelName, key);
+            } catch (error: any) {
+                const isRateLimit = error.message?.includes('429') || error.message?.includes('Too Many Requests');
+                console.warn(`[AI Provider] Gemini (${modelName}) failed with key ending in ...${key.slice(-4)}. Error: ${error.message}`);
+
+                if (isRateLimit) {
+                    // Try next key immediately
+                    break;
+                }
+                // If it's a 404 or other error, try next model with same key
+                continue;
+            }
+        }
+    }
+    throw new Error('All Gemini keys and models failed');
+}
+
+/**
  * Helper to call Gemini
  */
-async function callGemini(prompt: string, modelName: string): Promise<string> {
-    if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not configured');
-
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // Use the provided model name (e.g., gemini-1.5-flash or gemini-2.0-flash)
+async function callGemini(prompt: string, modelName: string, apiKey: string): Promise<string> {
+    const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: modelName });
 
     const result = await model.generateContent(prompt);

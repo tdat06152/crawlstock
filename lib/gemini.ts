@@ -43,7 +43,7 @@ YÊU CẦU (tối đa 150 từ, dùng markdown):
 Ngắn gọn, sắc sảo, chuyên nghiệp.`.trim();
 
     try {
-        return await generateAIContent(prompt, { model: 'gemini-1.5-flash' });
+        return await generateAIContent(prompt, { model: 'gemini-2.0-flash' });
     } catch (error) {
         console.error('AI Strategy Analysis Error:', error);
         throw error;
@@ -73,7 +73,7 @@ TRẢ LỜI (tối đa 4 câu tiếng Việt):
 
     try {
         console.log(`[AI Analysis] Processing ${data.symbol} with ${data.news.length} news items.`);
-        let text = await generateAIContent(prompt, { model: 'gemini-1.5-flash' });
+        let text = await generateAIContent(prompt, { model: 'gemini-2.0-flash' });
 
         if (data.news.length === 0) {
             text += '\n\n<i>(Lưu ý: Phân tích dựa trên bối cảnh chung, không có tin tức cụ thể)</i>';

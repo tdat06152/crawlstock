@@ -29,7 +29,7 @@ export async function generateAIContent(prompt: string, options: {
     model?: string,
     providerPreference?: 'gemini' | 'backup'
 } = {}): Promise<string> {
-    const { providerPreference = 'gemini', model = 'gemini-2.0-flash' } = options;
+    const { providerPreference = 'gemini', model = 'gemini-2.5-flash' } = options;
 
     // Try preferred provider first
     if (providerPreference === 'gemini') {
@@ -55,7 +55,7 @@ export async function generateAIContent(prompt: string, options: {
 async function callGeminiWithRotation(prompt: string, preferredModel: string): Promise<string> {
     if (GEMINI_KEYS.length === 0) throw new Error('No Gemini API keys configured');
 
-    const modelsToTry = [preferredModel, 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const modelsToTry = [preferredModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     const uniqueModels = [...new Set(modelsToTry)];
 
     for (const key of GEMINI_KEYS) {
